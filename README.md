@@ -2,7 +2,7 @@
 
 1. Add the below to a website bookmark (as URL).
 ```javascript
-javascript: goBack = () => { window.history.back(); setTimeout(addNextItem, Math.random() * 1000 + 300); }; addNextItem = () => { addButtons = [...document.querySelectorAll('.mds-icon--cpo')].filter(button => button.type === 'ico_add_circle'); buttonToClick = addButtons.pop(); if (!buttonToClick) return alert('Added all!'); buttonToClick.click(); setTimeout(goBack, Math.random() * 1000 + 300); }; addNextItem();
+javascript: goBack = () => { window.history.back(); setTimeout(addNextItem, Math.random() * 1000 + 300); }; addNextItem = () => { addButtons = [...document.querySelectorAll('.mds-icon--cpo')].filter(button => button.type === 'ico_add_circle'); buttonToClick = addButtons.pop(); if (!buttonToClick) return; buttonToClick.click(); setTimeout(goBack, Math.random() * 1000 + 300); }; addNextItem();
 ```
 
 2. Login to Chase. Click to the page showing all offers.

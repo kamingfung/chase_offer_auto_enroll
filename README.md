@@ -1,8 +1,8 @@
 # javascripts to auto-enroll chase offers
 
 1. Add the below to a website bookmark (as URL).
-```
-javascript: goBack = () => {% C2 % A0 % C2 % A0window.history.back();% C2 % A0 % C2 % A0setTimeout(addNextItem, Math.random() * 1000 + 300); }; addNextItem = () => {% C2 % A0 addButtons = [...document.querySelectorAll('.mds-icon--cpo')].filter(button => button.type === 'ico_add_circle');% C2 % A0 % C2 % A0 buttonToClick = addButtons.pop();% C2 % A0; % C2 % A0 % C2 % A0buttonToClick.click();% C2 % A0 % C2 % A0setTimeout(goBack, Math.random() * 1000 + 300); }; addNextItem();
+```javascript
+javascript: goBack = () => { window.history.back(); setTimeout(addNextItem, Math.random() * 1000 + 300); }; addNextItem = () => { addButtons = [...document.querySelectorAll('.mds-icon--cpo')].filter(button => button.type === 'ico_add_circle'); buttonToClick = addButtons.pop(); if (!buttonToClick) return alert('Added all!'); buttonToClick.click(); setTimeout(goBack, Math.random() * 1000 + 300); }; addNextItem();
 ```
 
 2. Login to Chase. Click to the page showing all offers.

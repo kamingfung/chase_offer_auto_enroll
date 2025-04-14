@@ -6,7 +6,7 @@
     <style>
         body {
             font-family: sans-serif;
-            width: 180px;
+            width: 220px;
             padding: 10px;
             text-align: center;
         }
@@ -15,12 +15,26 @@
             width: 90%;
             padding: 10px;
             font-size: 1em;
+            margin-bottom: 10px;
+        }
+
+        /* Style the status area */
+        #status {
+            font-size: 0.9em;
+            margin-top: 5px;
+            min-height: 1.2em;
+            /* Prevent layout shift */
+            color: #D32F2F;
+            /* A red color for errors/warnings */
+            font-weight: bold;
         }
     </style>
 </head>
 
 <body>
+    <h3>Chase Offer Runner</h3>
     <button id="runScriptButton">Run Offer Script</button>
+    <div id="status">Status: Idle</div>
     <script src="popup.js"></script>
 </body>
 

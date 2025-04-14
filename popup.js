@@ -14,7 +14,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     } else if (request.status === 'click_error') {
         statusDiv.textContent = `Click Error: ${request.message}`;
     } else if (request.status === 'script_started') {
-        statusDiv.textContent = 'Status: Running on page...';
+        statusDiv.textContent = 'Status: Adding offers...';
     }
     // Add more conditions here if the injected script sends other statuses
 
@@ -63,7 +63,7 @@ runButton.addEventListener('click', () => {
                 // Send a message back to the popup instead of alerting on the page
                 chrome.runtime.sendMessage({
                     status: 'no_buttons_found',
-                    message: 'No add buttons found!' // The message for the popup
+                    message: 'Cannot find add buttons!' // The message for the popup
                 });
                 // **************************
                 return; // Still need to return here

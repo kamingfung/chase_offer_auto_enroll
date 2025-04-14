@@ -1,8 +1,37 @@
 const runButton = document.getElementById('runScriptButton');
+const statusDiv = document.getElementById('status'); // Get reference to the status display area
 
+// --- Listener for Messages from Injected Script ---
+// This listens for messages sent FROM the script running on the Chase page
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    console.log("Popup received message:", request); // Log received messages
+
+    // Check the status included in the message
+    if (request.status === 'no_buttons_found') {
+        statusDiv.textContent = request.message; // Update the popup's status text
+        // You could optionally clear this message after a delay:
+        // setTimeout(() => { if (statusDiv.textContent === request.message) statusDiv.textContent = 'Status: Idle'; }, 4000);
+    } else if (request.status === 'click_error') {
+        statusDiv.textContent = `Click Error: ${request.message}`;
+    } else if (request.status === 'script_started') {
+        statusDiv.textContent = 'Status: Running on page...';
+    }
+    // Add more conditions here if the injected script sends other statuses
+
+    // Return false as we aren't sending an asynchronous response from the listener
+    return false;
+});
+
+// --- Button Click Handler ---
 runButton.addEventListener('click', () => {
-    // Define the exact script logic provided by the user as a function
+    statusDiv.textContent = 'Status: Injecting...'; // Initial status update
+
+    // --- Injected Script Definition ---
+    // This function gets sent to the Chase page to run
     const scriptToExecute = () => {
+        // Let the popup know the script has started executing on the page
+        chrome.runtime.sendMessage({ status: 'script_started' });
+
         console.log("Executing Chase Offer Script...");
 
         // --- Configuration & Helpers ---
@@ -12,14 +41,13 @@ runButton.addEventListener('click', () => {
         const getRandomDelay = () => Math.random() * (maxDelay - minDelay) + minDelay;
 
         // --- Core Functions ---
-        let goBack; // Declare for potential mutual reference
+        let goBack;
         let addNextItem;
 
         goBack = () => {
             console.log("Executing: goBack() - Navigating history back.");
             window.history.back();
-            // IMPORTANT: Script execution STOPS here due to navigation.
-            // The following timeout will likely never fire effectively.
+            // Script execution ends here due to navigation...
             console.log("Executing: goBack() - Scheduling addNextItem (will likely fail).");
             setTimeout(addNextItem, getRandomDelay());
         };
@@ -30,9 +58,15 @@ runButton.addEventListener('click', () => {
             const buttonToClick = addButtons.pop(); // Get last button
 
             if (!buttonToClick) {
-                console.log("Executing: addNextItem() - No button found.");
-                alert('No add buttons found on this page!'); // Direct feedback
-                return;
+                console.log("Executing: addNextItem() - No button found. Sending message to popup.");
+                // ******** KEY CHANGE ********
+                // Send a message back to the popup instead of alerting on the page
+                chrome.runtime.sendMessage({
+                    status: 'no_buttons_found',
+                    message: 'No add buttons found!' // The message for the popup
+                });
+                // **************************
+                return; // Still need to return here
             }
 
             console.log("Executing: addNextItem() - Found button, clicking:", buttonToClick);
@@ -42,38 +76,48 @@ runButton.addEventListener('click', () => {
                 setTimeout(goBack, getRandomDelay());
             } catch (error) {
                 console.error("Executing: addNextItem() - Error during click:", error);
-                alert(`Error clicking button: ${error.message}`);
+                // Optionally send click errors back to the popup too
+                chrome.runtime.sendMessage({
+                    status: 'click_error',
+                    message: error.message
+                });
             }
         };
 
         // --- Start ---
         addNextItem(); // Start the process
-    };
+    }; // --- End of Injected Script Definition ---
 
+
+    // --- Script Injection Logic ---
     // Get the current active tab
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         if (tabs.length > 0) {
             const targetTabId = tabs[0].id;
-            console.log(`Attempting to inject script into tab: ${targetTabId}`);
+            console.log(`Popup: Attempting to inject script into tab: ${targetTabId}`);
+            statusDiv.textContent = 'Status: Running...'; // Update status
 
             // Execute the script on the active tab
             chrome.scripting.executeScript({
                 target: { tabId: targetTabId },
-                func: scriptToExecute // Inject the function directly
+                func: scriptToExecute // Inject the function
             })
                 .then(() => {
-                    console.log("Script injected successfully from popup.");
-                    // Optionally close the popup after clicking
-                    window.close();
+                    console.log("Popup: Script injected successfully.");
+                    // NOTE: We DON'T close the popup here, so the user can see status messages
+                    // window.close();
                 })
                 .catch(err => {
                     console.error(`Popup script error: Failed to inject script: ${err}`);
-                    // Display error to user?
-                    alert(`Failed to run script: ${err.message}\n\nMake sure you are on a valid page (not chrome:// or settings) and reload the page.`);
+                    statusDiv.textContent = `Injection Error: ${err.message}`; // Show injection error in popup
                 });
         } else {
             console.error("Popup script error: No active tab found.");
-            alert("Error: Could not find active tab.");
+            statusDiv.textContent = 'Error: No active tab found.';
         }
-    });
-});
+    }); // --- End of Script Injection Logic ---
+
+}); // --- End of Button Click Handler ---
+
+// Set initial status when popup opens
+statusDiv.textContent = 'Status: Ready';

@@ -1,0 +1,40 @@
+{
+    "manifest_version": 3,
+    "name": "Chase Offer Adder",
+    "version": "1.0",
+    "description": "Automates adding Chase offers based on a specific workflow.",
+    "permissions": [
+        "activeTab", // Access information about the active tab
+        "scripting", // Inject scripts into pages
+        "tabs", // To interact with tabs (like goBack and listen for updates)
+        "storage" // To save the state (running or not)
+    ],
+    "background": {
+        "service_worker": "background.js"
+    },
+    "content_scripts": [
+        {
+            "matches": [
+                "https://secure.chase.com/web/auth/dashboard#/dashboard/merchantOffers/*"
+            ], // *** ADJUST THIS URL PATTERN ***
+            "js": [
+                "content.js"
+            ],
+            "run_at": "document_idle" // Run after the page is mostly loaded
+        }
+    ],
+    "action": {
+        "default_popup": "popup.html"
+        // ,
+        // "default_icon": {
+        //     "16": "images/icon16.png",
+        //     "48": "images/icon48.png",
+        //     "128": "images/icon128.png"
+        // }
+    }
+    // "icons": {
+    //     "16": "images/icon16.png",
+    //     "48": "images/icon48.png",
+    //     "128": "images/icon128.png"
+    // }
+}

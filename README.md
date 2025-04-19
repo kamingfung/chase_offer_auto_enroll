@@ -1,6 +1,6 @@
 # Chrome Extension: Chase Offer Adder
 
-A basic Chrome extension designed to simplify the process of adding Chase Offers by running a script with a single click from its popup menu.
+Stop clicking endlessly to add Chase Offers! This Chrome extension saves you time by clicking one "Add to Card" button for you with a single click in its popup. While you'll still click for each offer, it beats manually clicking and waiting every time. Think of it as your personal Chase Offer button-clicker!
 
 ## Overview
 
@@ -45,7 +45,7 @@ Since this extension is not on the Chrome Web Store, you need to load it manuall
 3. **Enable Developer Mode:** Look for the "Developer mode" toggle switch (usually in the top-right corner) and make sure it is turned **ON**.
 4. **Load Unpacked:** Click the "Load unpacked" button (usually appears in the top-left).
 5. **Select Folder:** Navigate to and select the folder where you saved the extension files (the folder containing `manifest.json`).
-6. **Done:** The "Simple Chase Offer Runner" extension should now appear in your list of extensions, and its icon should be visible in your Chrome toolbar.
+6. **Done:** The "Chase Offer Adder" extension should now appear in your list of extensions, and its icon should be visible in your Chrome toolbar.
 
 ## How to Use
 

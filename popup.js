@@ -8,13 +8,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     // Check the status included in the message
     if (request.status === 'no_buttons_found') {
-        statusDiv.textContent = request.message; // Update the popup's status text
-        // You could optionally clear this message after a delay:
-        // setTimeout(() => { if (statusDiv.textContent === request.message) statusDiv.textContent = 'Status: Idle'; }, 4000);
+        statusDiv.textContent = request.message;
+        statusDiv.style.color = '#FFA500'; // Orange color for no buttons found
     } else if (request.status === 'click_error') {
         statusDiv.textContent = `Click Error: ${request.message}`;
+        statusDiv.style.color = '#FF0000'; // Red color for errors
     } else if (request.status === 'script_started') {
         statusDiv.textContent = 'Status: Adding offers...';
+        statusDiv.style.color = '#008000'; // Green color for active status
     }
     // Add more conditions here if the injected script sends other statuses
 
@@ -24,7 +25,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
 // --- Button Click Handler ---
 runButton.addEventListener('click', () => {
-    statusDiv.textContent = 'Status: Injecting...'; // Initial status update
+    statusDiv.textContent = 'Status: Injecting...';
+    statusDiv.style.color = '#0000FF'; // Blue color for injection status
 
     // --- Injected Script Definition ---
     // This function gets sent to the Chase page to run
@@ -63,7 +65,7 @@ runButton.addEventListener('click', () => {
                 // Send a message back to the popup instead of alerting on the page
                 chrome.runtime.sendMessage({
                     status: 'no_buttons_found',
-                    message: 'Cannot find add buttons!' // The message for the popup
+                    message: 'Status: No add buttons found' // The message for the popup
                 });
                 // **************************
                 return; // Still need to return here
@@ -95,7 +97,8 @@ runButton.addEventListener('click', () => {
         if (tabs.length > 0) {
             const targetTabId = tabs[0].id;
             console.log(`Popup: Attempting to inject script into tab: ${targetTabId}`);
-            statusDiv.textContent = 'Status: Running...'; // Update status
+            statusDiv.textContent = 'Status: Running...';
+            statusDiv.style.color = '#0000FF'; // Blue color for running status
 
             // Execute the script on the active tab
             chrome.scripting.executeScript({
@@ -109,11 +112,13 @@ runButton.addEventListener('click', () => {
                 })
                 .catch(err => {
                     console.error(`Popup script error: Failed to inject script: ${err}`);
-                    statusDiv.textContent = `Injection Error: ${err.message}`; // Show injection error in popup
+                    statusDiv.textContent = `Injection Error: ${err.message}`;
+                    statusDiv.style.color = '#FF0000'; // Red color for errors
                 });
         } else {
             console.error("Popup script error: No active tab found.");
             statusDiv.textContent = 'Error: No active tab found.';
+            statusDiv.style.color = '#FF0000'; // Red color for errors
         }
     }); // --- End of Script Injection Logic ---
 
@@ -121,3 +126,4 @@ runButton.addEventListener('click', () => {
 
 // Set initial status when popup opens
 statusDiv.textContent = 'Status: Ready';
+statusDiv.style.color = '#000000'; // Black color for ready status

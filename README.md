@@ -1,34 +1,52 @@
 # Chrome Extension: Chase Offer Adder
 
-Stop clicking endlessly to add Chase Offers! This Chrome extension saves you time by clicking one "Add to Card" button for you with a single click in its popup. While you'll still click for each offer, it beats manually clicking and waiting every time. Think of it as your personal Chase Offer button-clicker!
+Stop clicking endlessly to add Chase Offers! This Chrome extension saves you time by automatically adding Chase Offers across all your cards. With features like automatic account switching and pause/resume functionality, you can efficiently manage your offers with minimal interaction.
 
 ## Overview
 
-This extension provides a simple browser action popup with a button. When you are on a Chase page displaying offers, clicking the `Add offers` button in the popup injects a small script into the page. This script attempts to:
+This extension provides a browser action popup with controls to manage the offer-adding process. When you are on a Chase page displaying offers, clicking the `Add offers` button in the popup injects a script that:
 
-1. Find an "Add to Card" button.
-2. Click the button.
-3. Wait a brief moment.
-4. Navigate back to the offer page.
-
-It helps reduce the number of clicks needed compared to manually clicking the offer, waiting, and navigating back, but it still requires user interaction for each offer.
+1. Finds and clicks "Add to Card" buttons
+2. Automatically switches between your credit card accounts
+3. Allows pausing and resuming the process at any time
+4. Provides real-time status updates
 
 ## Features
 
-* Simple popup interface with a single "Add offers" button.
-* Injects and runs the offer-adding script on the current active tab.
-* Provides basic status feedback within the popup (e.g., "Adding offers...", "Cannot find add buttons!", errors).
+* **Simple Interface**: Clean popup with "Add offers" and "Pause/Resume" buttons
+* **Automatic Account Switching**: Automatically processes offers across all your credit card accounts
+* **Pause/Resume Functionality**: Stop and continue the process at any time
+* **Real-time Status Updates**: Clear feedback about the current operation
+* **Smart Button Detection**: Finds and clicks the appropriate "Add to Card" buttons
+* **Error Handling**: Provides feedback for various scenarios (no buttons found, errors, etc.)
+
+## New Features
+
+### Automatic Account Switching
+
+* Automatically detects all your credit card accounts
+* Processes offers for each account sequentially
+* Switches accounts when all offers are added for the current account
+* Continues until all accounts are processed
+
+### Pause/Resume Functionality
+
+* Pause button appears when the script starts running
+* Click "Pause" to temporarily stop the process
+* Click "Resume" to continue from where it left off
+* Status updates show when the script is paused or running
+* Pause button automatically hides when the process completes
 
 ## Limitations
 
-* **Manual Credit Card Offer Page Selection**: The extension does not automatically navigate to the Chase Offers page of each card. You must manually go to the page where your offers are displayed.
-* **Manual Trigger Required:** This extension only adds **one** offer and goes back per button click. After the page navigates back, you **MUST click the extension icon and the "Run Offer Script" button again** to add the next offer. It is *not* fully automated.
-* **Basic Error Handling:** Includes minimal error feedback, mostly within the popup or the browser console.
-* **Single Button Logic:** The script currently targets the *last* button found matching the selector on the page.
+* **Initial Page Load**: You must manually navigate to the Chase Offers page to start
+* **Website Changes**: The extension may need updates if Chase changes their website structure
+* **Browser Navigation**: The script uses browser navigation (back button) between offers
+* **Single Tab Operation**: The extension operates only on the active tab
 
 ## Screenshots
 
-**1. Extension Popup:** Shows the simple interface with the button and status area.
+**1. Extension Popup:** Shows the interface with the Add offers button, Pause/Resume button, and status area.
 ![Popup Window](images/popup.png)
 
 **2. Example Chase Offers Page:** Shows the type of page and "Add to Card" buttons the extension interacts with.
@@ -49,12 +67,28 @@ Since this extension is not on the Chrome Web Store, you need to load it manuall
 
 ## How to Use
 
-1. **Navigate:** Go to the Chase webpage that displays your available offers where the "Add to Card" buttons are visible.
-2. **Click Extension Icon:** Click the extension's icon in your Chrome toolbar. A small popup window will appear.
-3. **Click "Add Offers":** Click the button inside the popup.
-4. **Wait:** The script will run on the page, click one button (if found), and navigate your browser back.
-5. **Check Status:** If no buttons were found, a message will appear in the popup.
-6. **Repeat:** Once the previous page has loaded, if you want to add another offer, repeat steps 2 and 3.
+1. **Navigate:** Go to the Chase webpage that displays your available offers
+2. **Start Process:**
+   * Click the extension's icon in your Chrome toolbar
+   * Click the "Add offers" button in the popup
+3. **Monitor Progress:**
+   * Watch the status updates in the popup
+   * Use the Pause/Resume button to control the process
+4. **Process Flow:**
+   * Script automatically adds offers for the current account
+   * Switches to next account when current account is complete
+   * Continues until all accounts are processed
+   * Pause button automatically hides when complete
+
+## Status Messages
+
+The popup displays various status messages to keep you informed:
+
+* "Status: Adding offers..." - Script is actively processing offers
+* "Status: Paused" - Process is temporarily stopped
+* "Switched to account: [Account Name]" - Successfully changed to a new account
+* "All accounts processed" - Script has completed all accounts
+* Error messages for various scenarios
 
 ## Disclaimer
 
@@ -65,8 +99,8 @@ Since this extension is not on the Chrome Web Store, you need to load it manuall
 
 ## License
 
-This project is licensed under the MIT License. See the `LICENSE` file for details (or you can add the license text here if you don't have a separate file).
+This project is licensed under the MIT License. See the `LICENSE` file for details.
 
 ---
 
-Generated on: April 14, 2025 (Time sensitive due to website dependency)
+Last Updated: May 10, 2025

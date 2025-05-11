@@ -37,7 +37,7 @@ runButton.addEventListener('click', () => {
         console.log("Executing Chase Offer Script...");
 
         // --- Configuration & Helpers ---
-        const addButtonSelector = '.mds-icon--cpo[type="ico_add_circle"]';
+        const addButtonSelector = 'mds-icon[type="ico_add_circle"][data-cy="commerce-tile-button"]';
         const minDelay = 300;
         const maxDelay = 1300;
         const getRandomDelay = () => Math.random() * (maxDelay - minDelay) + minDelay;
@@ -56,29 +56,55 @@ runButton.addEventListener('click', () => {
 
         addNextItem = () => {
             console.log("Executing: addNextItem() - Looking for button:", addButtonSelector);
+
+            // Try to find buttons using the new selector
             const addButtons = Array.from(document.querySelectorAll(addButtonSelector));
-            const buttonToClick = addButtons.pop(); // Get last button
+            console.log("Found buttons:", addButtons.length);
+
+            // Get the last button that's visible and clickable
+            const buttonToClick = addButtons.reverse().find(button => {
+                // Check if the button is visible and within viewport
+                const rect = button.getBoundingClientRect();
+                const isVisible = rect.width > 0 && rect.height > 0;
+                const isInViewport = rect.top >= 0 && rect.left >= 0 &&
+                    rect.bottom <= window.innerHeight &&
+                    rect.right <= window.innerWidth;
+
+                // Also check if the button's parent is clickable
+                const parentButton = button.closest('[role="button"]');
+                const isClickable = parentButton &&
+                    !parentButton.disabled &&
+                    window.getComputedStyle(parentButton).display !== 'none';
+
+                return isVisible && isInViewport && isClickable;
+            });
 
             if (!buttonToClick) {
-                console.log("Executing: addNextItem() - No button found. Sending message to popup.");
-                // ******** KEY CHANGE ********
-                // Send a message back to the popup instead of alerting on the page
+                console.log("Executing: addNextItem() - No clickable button found. Sending message to popup.");
                 chrome.runtime.sendMessage({
                     status: 'no_buttons_found',
-                    message: 'Status: No add buttons found' // The message for the popup
+                    message: 'Status: No clickable add buttons found'
                 });
-                // **************************
-                return; // Still need to return here
+                return;
             }
 
-            console.log("Executing: addNextItem() - Found button, clicking:", buttonToClick);
+            console.log("Executing: addNextItem() - Found button:", buttonToClick);
             try {
-                buttonToClick.click();
+                // Try to click the parent button element which has the role="button"
+                const parentButton = buttonToClick.closest('[role="button"]');
+                if (parentButton) {
+                    console.log("Clicking parent button element");
+                    parentButton.click();
+                } else {
+                    // Fallback to clicking the icon itself
+                    console.log("Clicking icon element directly");
+                    buttonToClick.click();
+                }
+
                 console.log("Executing: addNextItem() - Clicked. Scheduling goBack.");
                 setTimeout(goBack, getRandomDelay());
             } catch (error) {
                 console.error("Executing: addNextItem() - Error during click:", error);
-                // Optionally send click errors back to the popup too
                 chrome.runtime.sendMessage({
                     status: 'click_error',
                     message: error.message

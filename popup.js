@@ -1,6 +1,16 @@
 const runButton = document.getElementById('runScriptButton');
 const statusDiv = document.getElementById('status'); // Get reference to the status display area
 
+// Add pause button
+const pauseButton = document.createElement('button');
+pauseButton.id = 'pauseButton';
+pauseButton.textContent = 'Pause';
+pauseButton.style.marginLeft = '10px';
+pauseButton.style.display = 'none'; // Initially hidden
+runButton.parentNode.insertBefore(pauseButton, runButton.nextSibling);
+
+let isPaused = false;
+
 // --- Listener for Messages from Injected Script ---
 // This listens for messages sent FROM the script running on the Chase page
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -10,12 +20,24 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.status === 'no_buttons_found') {
         statusDiv.textContent = request.message;
         statusDiv.style.color = '#FFA500'; // Orange color for no buttons found
+        // Hide pause button when script is done
+        pauseButton.style.display = 'none';
     } else if (request.status === 'click_error') {
         statusDiv.textContent = `Click Error: ${request.message}`;
         statusDiv.style.color = '#FF0000'; // Red color for errors
     } else if (request.status === 'script_started') {
         statusDiv.textContent = 'Status: Adding offers...';
         statusDiv.style.color = '#008000'; // Green color for active status
+        // Show pause button when script starts
+        pauseButton.style.display = 'inline-block';
+    } else if (request.status === 'script_paused') {
+        statusDiv.textContent = 'Status: Paused';
+        statusDiv.style.color = '#FFA500';
+        pauseButton.textContent = 'Resume';
+    } else if (request.status === 'script_resumed') {
+        statusDiv.textContent = 'Status: Adding offers...';
+        statusDiv.style.color = '#008000';
+        pauseButton.textContent = 'Pause';
     }
     // Add more conditions here if the injected script sends other statuses
 
@@ -23,10 +45,26 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return false;
 });
 
+// Pause button click handler
+pauseButton.addEventListener('click', () => {
+    isPaused = !isPaused;
+
+    // Send message to content script to pause/resume
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs.length > 0) {
+            chrome.tabs.sendMessage(tabs[0].id, {
+                action: isPaused ? 'pause' : 'resume'
+            });
+        }
+    });
+});
+
 // --- Button Click Handler ---
 runButton.addEventListener('click', () => {
     statusDiv.textContent = 'Status: Injecting...';
     statusDiv.style.color = '#0000FF'; // Blue color for injection status
+    isPaused = false; // Reset pause state
+    pauseButton.textContent = 'Pause';
 
     // --- Injected Script Definition ---
     // This function gets sent to the Chase page to run
@@ -38,39 +76,130 @@ runButton.addEventListener('click', () => {
 
         // --- Configuration & Helpers ---
         const addButtonSelector = 'mds-icon[type="ico_add_circle"][data-cy="commerce-tile-button"]';
+        const accountSelector = 'mds-select[id="select-credit-card-account"]';
         const minDelay = 300;
         const maxDelay = 1300;
         const getRandomDelay = () => Math.random() * (maxDelay - minDelay) + minDelay;
 
         // --- Core Functions ---
-        let goBack;
-        let addNextItem;
+        let currentAccountIndex = 0;
+        let isPaused = false;
+        let isWaitingForResume = false;
 
-        goBack = () => {
+        // Listen for pause/resume messages from popup
+        chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+            if (request.action === 'pause') {
+                isPaused = true;
+                chrome.runtime.sendMessage({ status: 'script_paused' });
+            } else if (request.action === 'resume') {
+                isPaused = false;
+                chrome.runtime.sendMessage({ status: 'script_resumed' });
+                if (isWaitingForResume) {
+                    isWaitingForResume = false;
+                    addNextItem(); // Continue from where we left off
+                }
+            }
+            return false;
+        });
+
+        async function waitForResume() {
+            if (isPaused) {
+                isWaitingForResume = true;
+                return new Promise(resolve => {
+                    const checkPause = setInterval(() => {
+                        if (!isPaused) {
+                            clearInterval(checkPause);
+                            resolve();
+                        }
+                    }, 100);
+                });
+            }
+        }
+
+        function switchToNextAccount() {
+            if (isPaused) {
+                isWaitingForResume = true;
+                return false;
+            }
+
+            const select = document.querySelector(accountSelector);
+            if (!select) return false;
+
+            const options = select.querySelectorAll('mds-select-option');
+            currentAccountIndex++;
+
+            if (currentAccountIndex >= options.length) {
+                chrome.runtime.sendMessage({
+                    status: 'script_completed',
+                    message: 'All accounts processed'
+                });
+                return false;
+            }
+
+            // Click the select to open dropdown
+            select.click();
+
+            // Wait for dropdown to open and select next account
+            setTimeout(async () => {
+                if (isPaused) {
+                    await waitForResume();
+                }
+
+                const option = options[currentAccountIndex];
+                if (option) {
+                    option.click();
+                    chrome.runtime.sendMessage({
+                        status: 'account_switched',
+                        message: `Switched to account: ${option.getAttribute('label')}`
+                    });
+
+                    // Wait for account switch to complete before continuing
+                    setTimeout(() => {
+                        if (!isPaused) {
+                            addNextItem();
+                        } else {
+                            isWaitingForResume = true;
+                        }
+                    }, 2000);
+                }
+            }, 500);
+
+            return true;
+        }
+
+        let goBack = async () => {
+            if (isPaused) {
+                await waitForResume();
+            }
+
             console.log("Executing: goBack() - Navigating history back.");
             window.history.back();
-            // Script execution ends here due to navigation...
-            console.log("Executing: goBack() - Scheduling addNextItem (will likely fail).");
-            setTimeout(addNextItem, getRandomDelay());
+            setTimeout(() => {
+                if (!isPaused) {
+                    addNextItem();
+                } else {
+                    isWaitingForResume = true;
+                }
+            }, getRandomDelay());
         };
 
-        addNextItem = () => {
+        let addNextItem = async () => {
+            if (isPaused) {
+                await waitForResume();
+            }
+
             console.log("Executing: addNextItem() - Looking for button:", addButtonSelector);
 
-            // Try to find buttons using the new selector
             const addButtons = Array.from(document.querySelectorAll(addButtonSelector));
             console.log("Found buttons:", addButtons.length);
 
-            // Get the last button that's visible and clickable
             const buttonToClick = addButtons.reverse().find(button => {
-                // Check if the button is visible and within viewport
                 const rect = button.getBoundingClientRect();
                 const isVisible = rect.width > 0 && rect.height > 0;
                 const isInViewport = rect.top >= 0 && rect.left >= 0 &&
                     rect.bottom <= window.innerHeight &&
                     rect.right <= window.innerWidth;
 
-                // Also check if the button's parent is clickable
                 const parentButton = button.closest('[role="button"]');
                 const isClickable = parentButton &&
                     !parentButton.disabled &&
@@ -80,31 +209,36 @@ runButton.addEventListener('click', () => {
             });
 
             if (!buttonToClick) {
-                console.log("Executing: addNextItem() - No clickable button found. Sending message to popup.");
+                console.log("No more buttons found for current account, switching to next account");
+                if (switchToNextAccount()) {
+                    return;
+                }
                 chrome.runtime.sendMessage({
                     status: 'no_buttons_found',
-                    message: 'Status: No clickable add buttons found'
+                    message: 'All accounts processed'
                 });
                 return;
             }
 
-            console.log("Executing: addNextItem() - Found button:", buttonToClick);
             try {
-                // Try to click the parent button element which has the role="button"
                 const parentButton = buttonToClick.closest('[role="button"]');
                 if (parentButton) {
                     console.log("Clicking parent button element");
                     parentButton.click();
                 } else {
-                    // Fallback to clicking the icon itself
                     console.log("Clicking icon element directly");
                     buttonToClick.click();
                 }
 
-                console.log("Executing: addNextItem() - Clicked. Scheduling goBack.");
-                setTimeout(goBack, getRandomDelay());
+                setTimeout(async () => {
+                    if (!isPaused) {
+                        await goBack();
+                    } else {
+                        isWaitingForResume = true;
+                    }
+                }, getRandomDelay());
             } catch (error) {
-                console.error("Executing: addNextItem() - Error during click:", error);
+                console.error("Error during click:", error);
                 chrome.runtime.sendMessage({
                     status: 'click_error',
                     message: error.message
@@ -140,11 +274,13 @@ runButton.addEventListener('click', () => {
                     console.error(`Popup script error: Failed to inject script: ${err}`);
                     statusDiv.textContent = `Injection Error: ${err.message}`;
                     statusDiv.style.color = '#FF0000'; // Red color for errors
+                    pauseButton.style.display = 'none';
                 });
         } else {
             console.error("Popup script error: No active tab found.");
             statusDiv.textContent = 'Error: No active tab found.';
             statusDiv.style.color = '#FF0000'; // Red color for errors
+            pauseButton.style.display = 'none';
         }
     }); // --- End of Script Injection Logic ---
 

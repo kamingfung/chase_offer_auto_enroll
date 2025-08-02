@@ -3,10 +3,7 @@
     "name": "Simple Chase Offer Runner",
     "version": "1.0",
     "description": "Click the button in the popup to run the Chase offer script once on the current page.",
-    "permissions": [
-        "activeTab",
-        "scripting"
-    ],
+    "permissions": ["activeTab", "scripting"],
     "action": {
         "default_popup": "popup.html",
         "default_icon": {

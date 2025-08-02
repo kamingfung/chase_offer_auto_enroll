@@ -1,0 +1,59 @@
+{
+    "name": "chase-offer-adder",
+    "version": "1.0.0",
+    "description": "Chrome extension to automatically add Chase offers",
+    "main": "popup.js",
+    "type": "module",
+    "scripts": {
+        "test": "jest",
+        "test:watch": "jest --watch",
+        "test:coverage": "jest --coverage",
+        "lint": "eslint *.js",
+        "lint:fix": "eslint *.js --fix",
+        "format": "prettier --write *.js *.json *.html",
+        "format:check": "prettier --check *.js *.json *.html",
+        "prepare": "husky install"
+    },
+    "keywords": [
+        "chrome-extension",
+        "chase",
+        "offers",
+        "automation"
+    ],
+    "author": "",
+    "license": "MIT",
+    "devDependencies": {
+        "@eslint/js": "^9.0.0",
+        "eslint": "^9.0.0",
+        "globals": "^15.0.0",
+        "husky": "^9.0.0",
+        "jest": "^29.0.0",
+        "jest-environment-jsdom": "^29.0.0",
+        "lint-staged": "^15.0.0",
+        "prettier": "^3.0.0"
+    },
+    "lint-staged": {
+        "*.js": [
+            "prettier --write",
+            "eslint --fix",
+            "jest --findRelatedTests"
+        ],
+        "*.{json,html}": [
+            "prettier --write"
+        ]
+    },
+    "jest": {
+        "testEnvironment": "jsdom",
+        "setupFilesAfterEnv": [
+            "<rootDir>/tests/setup.js"
+        ],
+        "testMatch": [
+            "**/tests/**/*.test.js",
+            "**/__tests__/**/*.js"
+        ],
+        "collectCoverageFrom": [
+            "*.js",
+            "!node_modules/**"
+        ]
+    }
+}

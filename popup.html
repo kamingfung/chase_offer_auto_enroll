@@ -1,41 +1,39 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
+    <head>
+        <title>Run Script</title>
+        <style>
+            body {
+                font-family: sans-serif;
+                width: 220px;
+                padding: 10px;
+                text-align: center;
+            }
 
-<head>
-    <title>Run Script</title>
-    <style>
-        body {
-            font-family: sans-serif;
-            width: 220px;
-            padding: 10px;
-            text-align: center;
-        }
+            button {
+                width: 90%;
+                padding: 10px;
+                font-size: 1em;
+                margin-bottom: 10px;
+            }
 
-        button {
-            width: 90%;
-            padding: 10px;
-            font-size: 1em;
-            margin-bottom: 10px;
-        }
+            /* Style the status area */
+            #status {
+                font-size: 0.9em;
+                margin-top: 5px;
+                min-height: 1.2em;
+                /* Prevent layout shift */
+                color: #d32f2f;
+                /* A red color for errors/warnings */
+                font-weight: bold;
+            }
+        </style>
+    </head>
 
-        /* Style the status area */
-        #status {
-            font-size: 0.9em;
-            margin-top: 5px;
-            min-height: 1.2em;
-            /* Prevent layout shift */
-            color: #D32F2F;
-            /* A red color for errors/warnings */
-            font-weight: bold;
-        }
-    </style>
-</head>
-
-<body>
-    <h3>Chase Offer Adder</h3>
-    <button id="runScriptButton">Add offers</button>
-    <div id="status">Status: Idle</div>
-    <script src="popup.js"></script>
-</body>
-
+    <body>
+        <h3>Chase Offer Adder</h3>
+        <button id="runScriptButton">Add offers</button>
+        <div id="status">Status: Idle</div>
+        <script src="popup.js"></script>
+    </body>
 </html>

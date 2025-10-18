@@ -36,7 +36,7 @@
         "*.js": [
             "prettier --write",
             "eslint --fix",
-            "jest --findRelatedTests"
+            "jest --bail --findRelatedTests --passWithNoTests"
         ],
         "*.{json,html}": [
             "prettier --write"

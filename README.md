@@ -37,19 +37,23 @@ This Chrome extension automates the tedious process of adding Chase Offers to yo
 
 ### How It Works
 
-1. 🔍 **Scans** the page for available "Add to Card" buttons
+1. 🔍 **Scans** both carousel (featured) and grid (all offers) sections for available "Add to Card" buttons
 2. 🖱️ **Clicks** each button automatically with retry logic
-3. 🔄 **Switches accounts** when current account is complete
-4. 📊 **Updates status** in real-time
-5. ⏸️ **Pause/resume** controls for full user control
+3. 🔄 **Switches between tabs** if multiple page tabs exist
+4. 🔄 **Switches accounts** when all offers/tabs are complete
+5. 📊 **Updates status** in real-time
+6. ⏸️ **Pause/resume** controls for full user control
 
 ## ✨ Features
 
-- **🎯 Smart Button Detection**: Automatically finds and clicks "Add to Card" buttons
+- **🎯 Smart Button Detection**: Automatically finds and clicks "Add to Card" buttons in all page sections
+- **📑 Multi-Section Support**: Processes both carousel (featured) and grid (all offers) sections automatically
+- **📑 Multi-Tab Support**: Detects and cycles through page tabs if they exist
 - **🔄 Multi-Account Support**: Processes offers across all your credit card accounts
+- **✅ Smart Filtering**: Skips offers already added (with checkmark icons)
 - **⏸️ Pause/Resume Controls**: Stop and continue the process at any time
 - **🔁 Retry Logic**: Handles page loading delays with 3-retry mechanism
-- **📊 Real-time Status**: Live updates on progress and account switching
+- **📊 Real-time Status**: Live updates on progress, tab switching, and account switching
 - **🛡️ Error Handling**: Graceful handling of various scenarios
 - **🧭 Smart Navigation**: Efficient browser navigation between offers
 

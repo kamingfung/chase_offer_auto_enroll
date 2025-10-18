@@ -35,10 +35,14 @@ chase-offer-adder/
 ### Script Injection Process
 
 1. **Script Injection**: Popup injects automation script into active Chase tab using `chrome.scripting.executeScript`
-2. **Button Detection**: Script scans for `mds-icon[type="ico_add_circle"][data-cy="commerce-tile-button"]` elements
-3. **Retry Mechanism**: Implements 3-retry logic with 1-second delays to handle page loading delays
-4. **Account Switching**: Automatically cycles through accounts via `mds-select[id="select-credit-card-account"]`
-5. **Navigation**: Uses `window.history.back()` between offers
+2. **Multi-Section Detection**: Automatically searches for buttons in both carousel (featured offers) and grid (all offers) sections
+3. **Tab Discovery**: Automatically detects and cycles through page tabs if present
+4. **Button Detection**: Script scans for `mds-icon[type="ico_add_circle"][data-cy="commerce-tile-button"]` elements across all page sections
+5. **Already-Added Filter**: Skips offers with checkmark icons (`mds-icon[type="ico_checkmark_filled"]`) indicating they're already added
+6. **Retry Mechanism**: Implements 3-retry logic with 1-second delays to handle page loading delays
+7. **Tab Switching**: Automatically cycles through all tabs before switching accounts (if tabs are present)
+8. **Account Switching**: Automatically cycles through accounts via `mds-select[id="select-credit-card-account"]`
+9. **Navigation**: Uses `window.history.back()` between offers
 
 ### State Management
 
@@ -54,6 +58,7 @@ The extension uses Chrome runtime messaging for popup ↔ injected script commun
 - `script_started` - Automation begins
 - `script_paused` - Process paused
 - `script_resumed` - Process resumed
+- `tab_switched` - Switched to new tab (New, All offers, etc.)
 - `account_switched` - Switched to new account
 - `no_buttons_found` - No offers available
 - `click_error` - Error during button clicking
@@ -171,9 +176,22 @@ Required permissions in `manifest.json`:
 ### Selector Dependencies
 
 Extension relies on specific Chase selectors that may break with website updates:
+
 - **Add buttons**: `mds-icon[type="ico_add_circle"][data-cy="commerce-tile-button"]`
+- **Already-added indicators**: `mds-icon[type="ico_checkmark_filled"]`
+- **Offer tile containers**: `[data-cy*="offer-tile"]`, `[data-testid*="offer-tile"]`
+- **Carousel section**: `[data-testid*="carousel"]` (featured/highlighted offers)
+- **Grid section**: `[data-testid="grid-items-container"]` (all offers)
+- **Tab navigation** (optional): Multiple selectors including `button[data-cy*="new"]`, `[role="tab"][aria-label*="New"]`, etc.
 - **Account selector**: `mds-select[id="select-credit-card-account"]`
 - **Account options**: `mds-select-option`
+
+**Notes**:
+
+- The extension automatically searches for buttons in both carousel (featured offers) and grid (all offers) sections on the same page
+- Skips offers that already have checkmark icons, focusing only on offers with add buttons (plus icons)
+- Tab discovery uses multiple selector patterns to find page tabs if they exist
+- The automation cycles through all tabs (if present) before switching to the next account
 
 ## Code Style & Quality
 

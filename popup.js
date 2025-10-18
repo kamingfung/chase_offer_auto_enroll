@@ -38,6 +38,12 @@ chrome.runtime.onMessage.addListener((request, _sender, _sendResponse) => {
         statusDiv.textContent = 'Status: Adding offers...';
         statusDiv.style.color = '#008000';
         pauseButton.textContent = 'Pause';
+    } else if (request.status === 'tab_switched') {
+        statusDiv.textContent = `Status: ${request.message}`;
+        statusDiv.style.color = '#0000FF'; // Blue color for tab switching
+    } else if (request.status === 'account_switched') {
+        statusDiv.textContent = `Status: ${request.message}`;
+        statusDiv.style.color = '#800080'; // Purple color for account switching
     }
     // Add more conditions here if the injected script sends other statuses
 
@@ -76,15 +82,27 @@ runButton.addEventListener('click', () => {
 
         // --- Configuration & Helpers ---
         const addButtonSelector = 'mds-icon[type="ico_add_circle"][data-cy="commerce-tile-button"]';
+        const checkmarkSelector = 'mds-icon[type="ico_checkmark_filled"]';
         const accountSelector = 'mds-select[id="select-credit-card-account"]';
+        // Tab selectors for "New" and "All offers" sections
+        const tabSelectors = [
+            'button[data-cy*="new"]',
+            'button[data-cy*="all"]',
+            '[role="tab"][aria-label*="New"]',
+            '[role="tab"][aria-label*="All"]',
+            'a[href*="new"]',
+            'a[href*="all"]'
+        ];
         const minDelay = 300;
         const maxDelay = 1300;
         const getRandomDelay = () => Math.random() * (maxDelay - minDelay) + minDelay;
 
         // --- Core Functions ---
         let currentAccountIndex = 0;
+        let currentTabIndex = 0;
         let isPaused = false;
         let isWaitingForResume = false;
+        let allTabs = [];
 
         // Listen for pause/resume messages from popup
         chrome.runtime.onMessage.addListener((request, _sender, _sendResponse) => {
@@ -114,6 +132,77 @@ runButton.addEventListener('click', () => {
                     }, 100);
                 });
             }
+        }
+
+        function discoverTabs() {
+            // Try to find tabs on the page using various selectors
+            const discoveredTabs = [];
+
+            for (const selector of tabSelectors) {
+                const elements = document.querySelectorAll(selector);
+                elements.forEach(el => {
+                    const text = el.textContent.toLowerCase();
+                    // Look for "New" or "All" tabs
+                    if (
+                        (text.includes('new') || text.includes('all')) &&
+                        !discoveredTabs.includes(el)
+                    ) {
+                        discoveredTabs.push(el);
+                        console.log('Found tab:', el.textContent, 'selector:', selector);
+                    }
+                });
+            }
+
+            return discoveredTabs;
+        }
+
+        function switchToNextTab() {
+            if (isPaused) {
+                isWaitingForResume = true;
+                return false;
+            }
+
+            // If we haven't discovered tabs yet, do it now
+            if (allTabs.length === 0) {
+                allTabs = discoverTabs();
+                console.log('Discovered', allTabs.length, 'tabs');
+            }
+
+            // If no tabs found or already processed all tabs
+            if (allTabs.length === 0 || currentTabIndex >= allTabs.length) {
+                console.log('No more tabs to process');
+                return false;
+            }
+
+            currentTabIndex++;
+
+            // If we've gone through all tabs, return false
+            if (currentTabIndex >= allTabs.length) {
+                console.log('All tabs processed');
+                return false;
+            }
+
+            const tab = allTabs[currentTabIndex];
+            console.log('Switching to tab:', tab.textContent);
+
+            // Click the tab
+            tab.click();
+
+            chrome.runtime.sendMessage({
+                status: 'tab_switched',
+                message: `Switched to tab: ${tab.textContent}`
+            });
+
+            // Wait for tab content to load before continuing
+            setTimeout(() => {
+                if (!isPaused) {
+                    addNextItem();
+                } else {
+                    isWaitingForResume = true;
+                }
+            }, 1500);
+
+            return true;
         }
 
         function switchToNextAccount() {
@@ -191,10 +280,11 @@ runButton.addEventListener('click', () => {
                 await waitForResume();
             }
 
-            console.log('Executing: addNextItem() - Looking for button:', addButtonSelector);
+            console.log('Executing: addNextItem() - Looking for buttons in all sections');
 
+            // Find all add buttons across both carousel and grid sections
             const addButtons = Array.from(document.querySelectorAll(addButtonSelector));
-            console.log('Found buttons:', addButtons.length);
+            console.log('Found', addButtons.length, 'add buttons total across all sections');
 
             const buttonToClick = addButtons.reverse().find(button => {
                 const rect = button.getBoundingClientRect();
@@ -210,6 +300,19 @@ runButton.addEventListener('click', () => {
                     parentButton &&
                     !parentButton.disabled &&
                     window.getComputedStyle(parentButton).display !== 'none';
+
+                // Check if this offer tile already has a checkmark (already added)
+                // Find the parent offer tile container
+                const offerTile = button.closest(
+                    '[data-cy*="offer-tile"], [data-testid*="offer-tile"]'
+                );
+                const hasCheckmark = offerTile && offerTile.querySelector(checkmarkSelector);
+
+                // Skip offers that already have a checkmark
+                if (hasCheckmark) {
+                    console.log('Skipping offer with checkmark (already added)');
+                    return false;
+                }
 
                 return isVisible && isInViewport && isClickable;
             });
@@ -237,19 +340,28 @@ runButton.addEventListener('click', () => {
                     return;
                 }
 
-                // Reset retry count and switch to next account
+                // Reset retry count and try switching tabs first, then accounts
                 retryCount = 0;
-                console.log(
-                    'No more buttons found for current account after',
-                    maxRetries,
-                    'retries, switching to next account'
-                );
-                if (switchToNextAccount()) {
+                console.log('No more buttons found after', maxRetries, 'retries');
+
+                // First try switching to next tab
+                if (switchToNextTab()) {
+                    console.log('Switched to next tab, continuing...');
                     return;
                 }
+
+                // If no more tabs, reset tab index and try switching account
+                currentTabIndex = 0;
+                console.log('No more tabs, switching to next account');
+                if (switchToNextAccount()) {
+                    // When switching accounts, rediscover tabs for the new account
+                    allTabs = [];
+                    return;
+                }
+
                 chrome.runtime.sendMessage({
                     status: 'no_buttons_found',
-                    message: 'All accounts processed'
+                    message: 'All accounts and tabs processed'
                 });
                 return;
             }
@@ -258,12 +370,21 @@ runButton.addEventListener('click', () => {
             retryCount = 0;
 
             try {
+                // Determine which section this button is in
+                const inCarousel = buttonToClick.closest('[data-testid*="carousel"]');
+                const inGrid = buttonToClick.closest('[data-testid="grid-items-container"]');
+                const section = inCarousel
+                    ? 'carousel (featured)'
+                    : inGrid
+                        ? 'grid (all offers)'
+                        : 'unknown';
+
                 const parentButton = buttonToClick.closest('[role="button"]');
                 if (parentButton) {
-                    console.log('Clicking parent button element');
+                    console.log('Clicking button in', section, 'section');
                     parentButton.click();
                 } else {
-                    console.log('Clicking icon element directly');
+                    console.log('Clicking icon directly in', section, 'section');
                     buttonToClick.click();
                 }
 
@@ -284,7 +405,23 @@ runButton.addEventListener('click', () => {
         };
 
         // --- Start ---
-        addNextItem(); // Start the process
+        // Discover tabs at the start
+        allTabs = discoverTabs();
+        console.log('Starting automation. Found', allTabs.length, 'tabs');
+
+        // If tabs exist, make sure we start with the first one
+        if (allTabs.length > 0) {
+            console.log('Clicking first tab:', allTabs[0].textContent);
+            allTabs[0].click();
+            // Wait for tab content to load before starting
+            setTimeout(() => {
+                addNextItem();
+            }, 1500);
+        } else {
+            // No tabs found, start immediately
+            console.log('No tabs found, starting on current view');
+            addNextItem();
+        }
     }; // --- End of Injected Script Definition ---
 
     // --- Script Injection Logic ---

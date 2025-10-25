@@ -193,6 +193,9 @@ runButton.addEventListener('click', () => {
                 message: `Switched to tab: ${tab.textContent}`
             });
 
+            // Scroll to top of page to ensure we start from the beginning
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+
             // Wait for tab content to load before continuing
             setTimeout(() => {
                 if (!isPaused) {
@@ -242,14 +245,17 @@ runButton.addEventListener('click', () => {
                         message: `Switched to account: ${option.getAttribute('label')}`
                     });
 
-                    // Wait for account switch to complete before continuing
+                    // Scroll to top of page to ensure we start from the beginning
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+                    // Wait for account switch to complete before continuing (longer wait for account switches)
                     setTimeout(() => {
                         if (!isPaused) {
                             addNextItem();
                         } else {
                             isWaitingForResume = true;
                         }
-                    }, 2000);
+                    }, 2500); // Increased from 2000ms to 2500ms for account switches
                 }
             }, 500);
 
@@ -273,7 +279,8 @@ runButton.addEventListener('click', () => {
         };
 
         let retryCount = 0;
-        const maxRetries = 3;
+        const maxRetries = 5; // Increased from 3 to 5 for better reliability
+        const retryDelay = 2000; // Increased from 1000ms to 2000ms
 
         const addNextItem = async () => {
             if (isPaused) {
@@ -289,11 +296,6 @@ runButton.addEventListener('click', () => {
             const buttonToClick = addButtons.reverse().find(button => {
                 const rect = button.getBoundingClientRect();
                 const isVisible = rect.width > 0 && rect.height > 0;
-                const isInViewport =
-                    rect.top >= 0 &&
-                    rect.left >= 0 &&
-                    rect.bottom <= window.innerHeight &&
-                    rect.right <= window.innerWidth;
 
                 const parentButton = button.closest('[role="button"]');
                 const isClickable =
@@ -301,34 +303,51 @@ runButton.addEventListener('click', () => {
                     !parentButton.disabled &&
                     window.getComputedStyle(parentButton).display !== 'none';
 
-                // Check if this offer tile already has a checkmark (already added)
+                // Check if this offer tile already has a checkmark or success alert (already added)
                 // Find the parent offer tile container
                 const offerTile = button.closest(
-                    '[data-cy*="offer-tile"], [data-testid*="offer-tile"]'
+                    '[data-cy*="offer-tile"], [data-testid*="offer-tile"], [class*="offer"]'
                 );
-                const hasCheckmark = offerTile && offerTile.querySelector(checkmarkSelector);
 
-                // Skip offers that already have a checkmark
-                if (hasCheckmark) {
-                    console.log('Skipping offer with checkmark (already added)');
-                    return false;
+                if (offerTile) {
+                    const hasCheckmark = offerTile.querySelector(checkmarkSelector);
+                    const hasSuccessAlert = offerTile.querySelector(
+                        '[data-testid="offer-tile-alert-container-success"], [data-cy="offer-tile-alert-container-success"]'
+                    );
+
+                    // Skip offers that already have a checkmark or success alert
+                    if (hasCheckmark || hasSuccessAlert) {
+                        console.log(
+                            'Skipping offer already added (has checkmark or success alert)'
+                        );
+                        return false;
+                    }
                 }
 
-                return isVisible && isInViewport && isClickable;
+                // Only check if button is visible, don't require it to be in viewport
+                // This allows us to scroll to offers that are below the fold
+                return isVisible && isClickable;
             });
 
             if (!buttonToClick) {
                 console.log('No buttons found, retry count:', retryCount);
 
+                // Check if page is still loading content
+                const isLoading =
+                    document.querySelector(
+                        '[data-testid*="skeleton"], [class*="skeleton"], [class*="loading"]'
+                    ) || document.querySelector('[aria-busy="true"]');
+
+                if (isLoading) {
+                    console.log('Page is still loading content, resetting retry count');
+                    retryCount = 0; // Reset retry count if page is actively loading
+                }
+
                 // If we haven't reached max retries, wait and try again
                 if (retryCount < maxRetries) {
                     retryCount++;
                     console.log(
-                        'Retrying in 1 second... (attempt',
-                        retryCount,
-                        'of',
-                        maxRetries,
-                        ')'
+                        `Retrying in ${retryDelay / 1000} seconds... (attempt ${retryCount} of ${maxRetries})`
                     );
                     setTimeout(() => {
                         if (!isPaused) {
@@ -336,7 +355,7 @@ runButton.addEventListener('click', () => {
                         } else {
                             isWaitingForResume = true;
                         }
-                    }, 1000);
+                    }, retryDelay);
                     return;
                 }
 
@@ -370,6 +389,21 @@ runButton.addEventListener('click', () => {
             retryCount = 0;
 
             try {
+                // Scroll the button into view if it's not in viewport
+                const rect = buttonToClick.getBoundingClientRect();
+                const isInViewport =
+                    rect.top >= 0 &&
+                    rect.left >= 0 &&
+                    rect.bottom <= window.innerHeight &&
+                    rect.right <= window.innerWidth;
+
+                if (!isInViewport) {
+                    console.log('Scrolling button into view');
+                    buttonToClick.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    // Wait a moment after scrolling for any lazy-loaded content
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                }
+
                 // Determine which section this button is in
                 const inCarousel = buttonToClick.closest('[data-testid*="carousel"]');
                 const inGrid = buttonToClick.closest('[data-testid="grid-items-container"]');

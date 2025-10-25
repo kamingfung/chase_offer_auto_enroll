@@ -3,7 +3,7 @@
 > **Automate Chase Offers with ease!** Stop clicking endlessly and save time by automatically adding Chase Offers across all your credit cards.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Last Updated](https://img.shields.io/badge/Last%20Updated-August%202025-blue)]()
+[![Last Updated](https://img.shields.io/badge/Last%20Updated-October%202025-blue)]()
 
 ## 🚀 Quick Start
 
@@ -28,11 +28,11 @@
 
 This Chrome extension automates the tedious process of adding Chase Offers to your credit cards. Instead of manually clicking through each offer and account, the extension:
 
-- **Automatically detects** and clicks "Add to Card" buttons
-- **Switches between accounts** seamlessly 
+- **Automatically detects** and clicks "Add to Card" buttons across all page sections
+- **Switches between accounts** seamlessly
 - **Provides real-time feedback** on progress
 - **Pause/resume functionality** for complete control
-- **Smart retry mechanism** to handle page loading delays
+- **Enhanced retry mechanism** with smart loading detection for maximum reliability
 - **Handles errors gracefully** with clear status messages
 
 ### How It Works
@@ -52,10 +52,11 @@ This Chrome extension automates the tedious process of adding Chase Offers to yo
 - **🔄 Multi-Account Support**: Processes offers across all your credit card accounts
 - **✅ Smart Filtering**: Skips offers already added (with checkmark icons)
 - **⏸️ Pause/Resume Controls**: Stop and continue the process at any time
-- **🔁 Retry Logic**: Handles page loading delays with 3-retry mechanism
+- **🔁 Enhanced Retry Logic**: 5-retry mechanism with smart loading detection for maximum reliability
 - **📊 Real-time Status**: Live updates on progress, tab switching, and account switching
 - **🛡️ Error Handling**: Graceful handling of various scenarios
 - **🧭 Smart Navigation**: Efficient browser navigation between offers
+- **🎚️ Auto-Scroll**: Automatically scrolls to buttons that are off-screen
 
 ## 📋 Prerequisites
 
@@ -160,14 +161,16 @@ A: Use the Pause button, refresh the page, and restart.
 - Chase website changes may break functionality
 - Your responsibility to comply with Chase's terms of service
 
-## For Developers
+## 👨‍💻 For Developers
 
-Interested in the technical details, development setup, or contributing? Check out our [Technical Documentation](TECHNICAL.md) for:
+Interested in the technical details, development setup, or contributing? Check out our comprehensive [**Technical Documentation**](TECHNICAL.md) for:
 
-- Architecture and code structure
-- Development commands and testing
-- Chrome extension implementation details
-- Contributing guidelines
+- 🏗️ Architecture and code structure
+- 🧪 Development commands and testing
+- ⚙️ Chrome extension implementation details
+- 🔧 Advanced configuration and debugging
+- 🤝 Contributing guidelines
+- 📝 Recent updates and version history
 
 ## 📄 License
 
@@ -175,5 +178,15 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ---
 
-**Version:** 1.0.0  
-**Last Updated:** August 2025
+**Version:** 1.1.0
+**Last Updated:** October 2025
+
+### What's New in v1.1
+
+- ✨ Enhanced retry mechanism (5 retries with smart loading detection)
+- ✨ Automatic scrolling for off-screen buttons
+- ✨ Improved reliability with better page loading detection
+- ✨ Section-aware processing (carousel + grid)
+- ✨ Optimized timing for faster, more reliable automation
+
+See [TECHNICAL.md](TECHNICAL.md) for detailed technical changes.

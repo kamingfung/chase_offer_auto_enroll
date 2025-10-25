@@ -39,10 +39,13 @@ chase-offer-adder/
 3. **Tab Discovery**: Automatically detects and cycles through page tabs if present
 4. **Button Detection**: Script scans for `mds-icon[type="ico_add_circle"][data-cy="commerce-tile-button"]` elements across all page sections
 5. **Already-Added Filter**: Skips offers with checkmark icons (`mds-icon[type="ico_checkmark_filled"]`) indicating they're already added
-6. **Retry Mechanism**: Implements 3-retry logic with 1-second delays to handle page loading delays
-7. **Tab Switching**: Automatically cycles through all tabs before switching accounts (if tabs are present)
-8. **Account Switching**: Automatically cycles through accounts via `mds-select[id="select-credit-card-account"]`
-9. **Navigation**: Uses `window.history.back()` between offers
+6. **Smart Scrolling**: Automatically scrolls buttons into view if they're off-viewport for better reliability
+7. **Section Detection**: Identifies whether buttons are in carousel (featured) or grid (all offers) sections
+8. **Retry Mechanism**: Implements 5-retry logic with 2-second delays to handle page loading delays (increased from 3 retries/1 second)
+9. **Loading Detection**: Detects page loading states (skeleton loaders, aria-busy) and resets retry count accordingly
+10. **Tab Switching**: Automatically cycles through all tabs before switching accounts (if tabs are present)
+11. **Account Switching**: Automatically cycles through accounts via `mds-select[id="select-credit-card-account"]`
+12. **Navigation**: Uses `window.history.back()` between offers
 
 ### State Management
 
@@ -146,24 +149,38 @@ global.chrome = {
 
 ## Critical Implementation Details
 
-### Retry Mechanism (Bug Fix)
+### Retry Mechanism (Enhanced)
 
-The most critical recent fix addresses premature account switching. The script now retries 3 times with 1-second delays before switching accounts, preventing lost offers due to page loading delays.
+The retry mechanism prevents premature tab/account switching when pages are still loading. The script now implements **5 retries with 2-second delays** (increased from 3 retries with 1-second delays) for better reliability with Chase's dynamic page loading.
 
-**Implementation:**
+**Key Features:**
+- **Smart Loading Detection**: Detects skeleton loaders and `aria-busy` states, resetting retry count when page is actively loading
+- **Automatic Scrolling**: Scrolls buttons into view before clicking if they're off-viewport
+- **Section Awareness**: Identifies whether buttons are in carousel (featured offers) or grid (all offers) sections
+- **Progress Preservation**: Only switches tabs/accounts after exhausting all retry attempts
+
+**Implementation (popup.js:282-357):**
 ```javascript
-// Retry logic in injected script
+// Enhanced retry logic with loading detection
 let retryCount = 0;
-const maxRetries = 3;
+const maxRetries = 5; // Increased from 3
+const retryDelay = 2000; // Increased from 1000ms
 
-while (retryCount < maxRetries) {
-    const buttons = document.querySelectorAll(buttonSelector);
-    if (buttons.length > 0) {
-        // Process buttons
-        break;
+if (!buttonToClick) {
+    // Detect if page is still loading content
+    const isLoading = document.querySelector('[data-testid*="skeleton"], [class*="loading"]') ||
+                     document.querySelector('[aria-busy="true"]');
+
+    if (isLoading) {
+        retryCount = 0; // Reset retry count if page is actively loading
     }
-    retryCount++;
-    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    if (retryCount < maxRetries) {
+        retryCount++;
+        setTimeout(() => addNextItem(), retryDelay);
+        return;
+    }
+    // After max retries, try switching tabs then accounts
 }
 ```
 
@@ -349,6 +366,26 @@ console.log('Popup received message:', request);
 2. Update CHANGELOG.md with new features/fixes
 3. Create GitHub release with zip file
 4. Test installation process
+
+## Recent Updates
+
+### Version 1.1 (Current)
+
+**Enhanced Retry Mechanism:**
+- Increased retry attempts from 3 to 5 for better reliability
+- Increased retry delay from 1 second to 2 seconds
+- Added smart loading detection (skeleton loaders, aria-busy states)
+- Automatically resets retry count when page is actively loading
+
+**Smart Button Detection:**
+- Automatic scrolling for off-viewport buttons
+- Section detection (carousel vs grid)
+- Better visibility checking
+
+**Improved Timing:**
+- Tab switch delay: 1.5 seconds (optimized for content loading)
+- Account switch delay: 2.5 seconds (increased for account transitions)
+- Random action delays: 300-1300ms (natural behavior simulation)
 
 ## Future Improvements
 

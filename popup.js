@@ -90,28 +90,16 @@ runButton.addEventListener('click', () => {
         const addButtonSelector = 'mds-icon[type="ico_add_circle"][data-cy="commerce-tile-button"]';
         const checkmarkSelector = 'mds-icon[type="ico_checkmark_filled"]';
         const accountSelector = 'mds-select[id="select-credit-card-account"]';
-        // Tab selectors for "Featured", "New" and "All offers" sections
-        const tabSelectors = [
-            'button[data-cy*="featured"]',
-            'button[data-cy*="new"]',
-            'button[data-cy*="all"]',
-            '[role="tab"][aria-label*="Featured"]',
-            '[role="tab"][aria-label*="New"]',
-            '[role="tab"][aria-label*="All"]',
-            'a[href*="featured"]',
-            'a[href*="new"]',
-            'a[href*="all"]'
-        ];
+        // Note: Both "Featured" and "All offers" sections are visible on the same page
+        // The script processes all sections by finding all buttons across both sections
         const minDelay = 300;
         const maxDelay = 1300;
         const getRandomDelay = () => Math.random() * (maxDelay - minDelay) + minDelay;
 
         // --- Core Functions ---
         let currentAccountIndex = 0;
-        let currentTabIndex = 0;
         let isPaused = false;
         let isWaitingForResume = false;
-        let allTabs = [];
         let totalButtonsInCurrentView = 0;
         let buttonsClickedInCurrentView = 0;
         let totalButtonsClickedOverall = 0;
@@ -150,37 +138,63 @@ runButton.addEventListener('click', () => {
         function getOfferIdentifier(button) {
             // Create a unique identifier for an offer based on its tile content
             const offerTile = button.closest(
-                '[data-cy*="offer-tile"], [data-testid*="offer-tile"], [class*="offer"]'
+                '[data-cy="commerce-tile"], [data-testid="commerce-tile"]'
             );
-            if (!offerTile) return null;
-
-            // Try to get offer ID from data attributes
-            const offerId =
-                offerTile.getAttribute('data-offer-id') ||
-                offerTile.getAttribute('data-cy') ||
-                offerTile.getAttribute('data-testid');
-
-            if (offerId) return offerId;
-
-            // Fallback: use offer title text as identifier
-            const titleElement = offerTile.querySelector(
-                '[data-cy*="title"], [class*="title"], h3, h4'
-            );
-            if (titleElement) {
-                return titleElement.textContent.trim();
+            if (!offerTile) {
+                console.log('Could not find commerce-tile for button');
+                return null;
             }
 
+            // Try to get offer ID from the tile's id attribute (e.g., "carousel_0_FIGG:1887586")
+            const tileId = offerTile.getAttribute('id');
+            if (tileId) {
+                console.log('Found offer ID from tile id:', tileId);
+                return tileId;
+            }
+
+            // Try aria-label which contains merchant name (e.g., "1 of 20 [solidcore] 15% cash back Add Offer")
+            const ariaLabel = offerTile.getAttribute('aria-label');
+            if (ariaLabel) {
+                // Extract merchant name from aria-label
+                const merchantMatch = ariaLabel.match(/\[(.*?)\]/);
+                if (merchantMatch) {
+                    const merchantName = merchantMatch[1];
+                    console.log('Using merchant name as identifier:', merchantName);
+                    return merchantName;
+                }
+                // Fallback to full aria-label
+                console.log('Using aria-label as identifier:', ariaLabel);
+                return ariaLabel;
+            }
+
+            // Last resort: try to find merchant name in tile text
+            const merchantSpan = offerTile.querySelector('.mds-body-small-heavier');
+            if (merchantSpan) {
+                const merchantName = merchantSpan.textContent.trim();
+                console.log('Using merchant span text as identifier:', merchantName);
+                return merchantName;
+            }
+
+            console.log('Could not determine offer identifier for tile');
             return null;
         }
 
         function countClickableButtons() {
             const addButtons = Array.from(document.querySelectorAll(addButtonSelector));
+            console.log(`[COUNT] Found ${addButtons.length} total add button elements`);
+
             let count = 0;
             const seenOffers = new Set();
 
             addButtons.forEach(button => {
                 const rect = button.getBoundingClientRect();
+                const inCarousel = button.closest('[data-testid*="carousel"]');
                 const isVisible = rect.width > 0 && rect.height > 0;
+
+                // Accept carousel items even if not currently visible (they can be scrolled to)
+                if (!isVisible && !inCarousel) {
+                    return;
+                }
 
                 const parentButton = button.closest('[role="button"]');
                 const isClickable =
@@ -188,9 +202,13 @@ runButton.addEventListener('click', () => {
                     !parentButton.disabled &&
                     window.getComputedStyle(parentButton).display !== 'none';
 
+                if (!isClickable) {
+                    return;
+                }
+
                 // Check if this offer tile already has a checkmark or success alert
                 const offerTile = button.closest(
-                    '[data-cy*="offer-tile"], [data-testid*="offer-tile"], [class*="offer"]'
+                    '[data-cy="commerce-tile"], [data-testid="commerce-tile"]'
                 );
 
                 let alreadyAdded = false;
@@ -202,102 +220,29 @@ runButton.addEventListener('click', () => {
                     alreadyAdded = hasCheckmark || hasSuccessAlert;
                 }
 
-                // Check if we've already processed this offer (avoid duplicates between tabs)
+                if (alreadyAdded) {
+                    return;
+                }
+
+                // Check if we've already processed this offer
                 const offerId = getOfferIdentifier(button);
                 const alreadyProcessed = offerId && processedOffersInCurrentAccount.has(offerId);
+
+                if (alreadyProcessed) {
+                    return;
+                }
 
                 // Check if we've already seen this offer in the current count (duplicates in view)
                 const alreadyCounted = offerId && seenOffers.has(offerId);
 
-                if (isVisible && isClickable && !alreadyAdded && !alreadyProcessed) {
-                    if (!alreadyCounted) {
-                        if (offerId) seenOffers.add(offerId);
-                        count++;
-                    }
+                if (!alreadyCounted) {
+                    if (offerId) seenOffers.add(offerId);
+                    count++;
                 }
             });
 
+            console.log(`[COUNT] Unique clickable offers: ${count}`);
             return count;
-        }
-
-        function discoverTabs() {
-            // Try to find tabs on the page using various selectors
-            const discoveredTabs = [];
-
-            for (const selector of tabSelectors) {
-                const elements = document.querySelectorAll(selector);
-                elements.forEach(el => {
-                    const text = el.textContent.toLowerCase();
-                    // Look for "Featured", "New" or "All" tabs
-                    if (
-                        (text.includes('featured') ||
-                            text.includes('new') ||
-                            text.includes('all')) &&
-                        !discoveredTabs.includes(el)
-                    ) {
-                        discoveredTabs.push(el);
-                        console.log('Found tab:', el.textContent, 'selector:', selector);
-                    }
-                });
-            }
-
-            return discoveredTabs;
-        }
-
-        function switchToNextTab() {
-            if (isPaused) {
-                isWaitingForResume = true;
-                return false;
-            }
-
-            // If we haven't discovered tabs yet, do it now
-            if (allTabs.length === 0) {
-                allTabs = discoverTabs();
-                console.log('Discovered', allTabs.length, 'tabs');
-            }
-
-            // If no tabs found or already processed all tabs
-            if (allTabs.length === 0 || currentTabIndex >= allTabs.length) {
-                console.log('No more tabs to process');
-                return false;
-            }
-
-            currentTabIndex++;
-
-            // If we've gone through all tabs, return false
-            if (currentTabIndex >= allTabs.length) {
-                console.log('All tabs processed');
-                return false;
-            }
-
-            const tab = allTabs[currentTabIndex];
-            console.log('Switching to tab:', tab.textContent);
-
-            // Click the tab
-            tab.click();
-
-            // Scroll to top of page to ensure we start from the beginning
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-
-            // Wait for tab content to load before continuing
-            setTimeout(() => {
-                // Count buttons in new tab
-                totalButtonsInCurrentView = countClickableButtons();
-                buttonsClickedInCurrentView = 0;
-
-                chrome.runtime.sendMessage({
-                    status: 'tab_switched',
-                    message: `Switched to tab: ${tab.textContent}. Found ${totalButtonsInCurrentView} offers to add.`
-                });
-
-                if (!isPaused) {
-                    addNextItem();
-                } else {
-                    isWaitingForResume = true;
-                }
-            }, 1500);
-
-            return true;
         }
 
         function switchToNextAccount() {
@@ -394,9 +339,29 @@ runButton.addEventListener('click', () => {
             const addButtons = Array.from(document.querySelectorAll(addButtonSelector));
             console.log('Found', addButtons.length, 'add buttons total across all sections');
 
-            const buttonToClick = addButtons.reverse().find(button => {
+            // Debug: Check where these buttons are located
+            const carouselButtons = addButtons.filter(btn =>
+                btn.closest('[data-testid*="carousel"]')
+            );
+            const gridButtons = addButtons.filter(btn =>
+                btn.closest('[data-testid="grid-items-container"]')
+            );
+            console.log(
+                `Buttons by section: ${carouselButtons.length} in carousel, ${gridButtons.length} in grid`
+            );
+
+            const buttonToClick = addButtons.find(button => {
                 const rect = button.getBoundingClientRect();
+                // For carousel items, they exist in DOM even if scrolled out of view
+                // Check if element exists (has dimensions) OR is in a carousel
+                const inCarousel = button.closest('[data-testid*="carousel"]');
                 const isVisible = rect.width > 0 && rect.height > 0;
+
+                // For carousel items, we accept them even if not visible (will scroll to them)
+                // For grid items, they must be visible
+                if (!isVisible && !inCarousel) {
+                    return false;
+                }
 
                 const parentButton = button.closest('[role="button"]');
                 const isClickable =
@@ -404,10 +369,14 @@ runButton.addEventListener('click', () => {
                     !parentButton.disabled &&
                     window.getComputedStyle(parentButton).display !== 'none';
 
+                if (!isClickable) {
+                    return false;
+                }
+
                 // Check if this offer tile already has a checkmark or success alert (already added)
                 // Find the parent offer tile container
                 const offerTile = button.closest(
-                    '[data-cy*="offer-tile"], [data-testid*="offer-tile"], [class*="offer"]'
+                    '[data-cy*="offer-tile"], [data-testid*="offer-tile"], [data-cy="commerce-tile"], [data-testid="commerce-tile"]'
                 );
 
                 if (offerTile) {
@@ -432,9 +401,7 @@ runButton.addEventListener('click', () => {
                     return false;
                 }
 
-                // Only check if button is visible, don't require it to be in viewport
-                // This allows us to scroll to offers that are below the fold
-                return isVisible && isClickable;
+                return true;
             });
 
             if (!buttonToClick) {
@@ -467,28 +434,19 @@ runButton.addEventListener('click', () => {
                     return;
                 }
 
-                // Reset retry count and try switching tabs first, then accounts
+                // Reset retry count and try switching to next account
                 retryCount = 0;
                 console.log('No more buttons found after', maxRetries, 'retries');
 
-                // First try switching to next tab
-                if (switchToNextTab()) {
-                    console.log('Switched to next tab, continuing...');
-                    return;
-                }
-
-                // If no more tabs, reset tab index and try switching account
-                currentTabIndex = 0;
-                console.log('No more tabs, switching to next account');
+                // Try switching to next account
                 if (switchToNextAccount()) {
-                    // When switching accounts, rediscover tabs for the new account
-                    allTabs = [];
+                    console.log('Switched to next account, continuing...');
                     return;
                 }
 
                 chrome.runtime.sendMessage({
                     status: 'no_buttons_found',
-                    message: 'All accounts and tabs processed'
+                    message: 'All accounts processed'
                 });
                 return;
             }
@@ -564,41 +522,25 @@ runButton.addEventListener('click', () => {
         };
 
         // --- Start ---
-        // Discover tabs at the start
-        allTabs = discoverTabs();
-        console.log('Starting automation. Found', allTabs.length, 'tabs');
+        console.log('Starting automation on offers page...');
 
-        // If tabs exist, make sure we start with the first one
-        if (allTabs.length > 0) {
-            console.log('Clicking first tab:', allTabs[0].textContent);
-            allTabs[0].click();
-            // Wait for tab content to load before starting
-            setTimeout(() => {
-                // Count buttons in first tab
-                totalButtonsInCurrentView = countClickableButtons();
-                buttonsClickedInCurrentView = 0;
+        // Scroll to top of page to ensure we start from the beginning
+        window.scrollTo({ top: 0, behavior: 'smooth' });
 
-                chrome.runtime.sendMessage({
-                    status: 'buttons_counted',
-                    message: `Found ${totalButtonsInCurrentView} offers to add in ${allTabs[0].textContent}`
-                });
-
-                addNextItem();
-            }, 1500);
-        } else {
-            // No tabs found, start immediately
-            console.log('No tabs found, starting on current view');
-            // Count buttons in current view
+        // Wait a moment for page to settle, then count and start
+        setTimeout(() => {
+            // Count all unique buttons across both Featured and All offers sections
             totalButtonsInCurrentView = countClickableButtons();
             buttonsClickedInCurrentView = 0;
 
             chrome.runtime.sendMessage({
                 status: 'buttons_counted',
-                message: `Found ${totalButtonsInCurrentView} offers to add`
+                message: `Found ${totalButtonsInCurrentView} unique offers to add`
             });
 
+            console.log(`Found ${totalButtonsInCurrentView} unique offers across all sections`);
             addNextItem();
-        }
+        }, 1000);
     }; // --- End of Injected Script Definition ---
 
     // --- Script Injection Logic ---

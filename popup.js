@@ -44,6 +44,12 @@ chrome.runtime.onMessage.addListener((request, _sender, _sendResponse) => {
     } else if (request.status === 'account_switched') {
         statusDiv.textContent = `Status: ${request.message}`;
         statusDiv.style.color = '#800080'; // Purple color for account switching
+    } else if (request.status === 'buttons_counted') {
+        statusDiv.textContent = `Status: ${request.message}`;
+        statusDiv.style.color = '#008000'; // Green color for counting
+    } else if (request.status === 'offer_clicked') {
+        statusDiv.textContent = `Status: ${request.message}`;
+        statusDiv.style.color = '#008000'; // Green color for progress
     }
     // Add more conditions here if the injected script sends other statuses
 
@@ -84,12 +90,15 @@ runButton.addEventListener('click', () => {
         const addButtonSelector = 'mds-icon[type="ico_add_circle"][data-cy="commerce-tile-button"]';
         const checkmarkSelector = 'mds-icon[type="ico_checkmark_filled"]';
         const accountSelector = 'mds-select[id="select-credit-card-account"]';
-        // Tab selectors for "New" and "All offers" sections
+        // Tab selectors for "Featured", "New" and "All offers" sections
         const tabSelectors = [
+            'button[data-cy*="featured"]',
             'button[data-cy*="new"]',
             'button[data-cy*="all"]',
+            '[role="tab"][aria-label*="Featured"]',
             '[role="tab"][aria-label*="New"]',
             '[role="tab"][aria-label*="All"]',
+            'a[href*="featured"]',
             'a[href*="new"]',
             'a[href*="all"]'
         ];
@@ -103,6 +112,10 @@ runButton.addEventListener('click', () => {
         let isPaused = false;
         let isWaitingForResume = false;
         let allTabs = [];
+        let totalButtonsInCurrentView = 0;
+        let buttonsClickedInCurrentView = 0;
+        let totalButtonsClickedOverall = 0;
+        const processedOffersInCurrentAccount = new Set(); // Track processed offers to avoid duplicates
 
         // Listen for pause/resume messages from popup
         chrome.runtime.onMessage.addListener((request, _sender, _sendResponse) => {
@@ -134,6 +147,79 @@ runButton.addEventListener('click', () => {
             }
         }
 
+        function getOfferIdentifier(button) {
+            // Create a unique identifier for an offer based on its tile content
+            const offerTile = button.closest(
+                '[data-cy*="offer-tile"], [data-testid*="offer-tile"], [class*="offer"]'
+            );
+            if (!offerTile) return null;
+
+            // Try to get offer ID from data attributes
+            const offerId =
+                offerTile.getAttribute('data-offer-id') ||
+                offerTile.getAttribute('data-cy') ||
+                offerTile.getAttribute('data-testid');
+
+            if (offerId) return offerId;
+
+            // Fallback: use offer title text as identifier
+            const titleElement = offerTile.querySelector(
+                '[data-cy*="title"], [class*="title"], h3, h4'
+            );
+            if (titleElement) {
+                return titleElement.textContent.trim();
+            }
+
+            return null;
+        }
+
+        function countClickableButtons() {
+            const addButtons = Array.from(document.querySelectorAll(addButtonSelector));
+            let count = 0;
+            const seenOffers = new Set();
+
+            addButtons.forEach(button => {
+                const rect = button.getBoundingClientRect();
+                const isVisible = rect.width > 0 && rect.height > 0;
+
+                const parentButton = button.closest('[role="button"]');
+                const isClickable =
+                    parentButton &&
+                    !parentButton.disabled &&
+                    window.getComputedStyle(parentButton).display !== 'none';
+
+                // Check if this offer tile already has a checkmark or success alert
+                const offerTile = button.closest(
+                    '[data-cy*="offer-tile"], [data-testid*="offer-tile"], [class*="offer"]'
+                );
+
+                let alreadyAdded = false;
+                if (offerTile) {
+                    const hasCheckmark = offerTile.querySelector(checkmarkSelector);
+                    const hasSuccessAlert = offerTile.querySelector(
+                        '[data-testid="offer-tile-alert-container-success"], [data-cy="offer-tile-alert-container-success"]'
+                    );
+                    alreadyAdded = hasCheckmark || hasSuccessAlert;
+                }
+
+                // Check if we've already processed this offer (avoid duplicates between tabs)
+                const offerId = getOfferIdentifier(button);
+                const alreadyProcessed = offerId && processedOffersInCurrentAccount.has(offerId);
+
+                // Check if we've already seen this offer in the current count (duplicates in view)
+                const alreadyCounted = offerId && seenOffers.has(offerId);
+
+                if (isVisible && isClickable && !alreadyAdded && !alreadyProcessed) {
+                    if (!alreadyCounted) {
+                        if (offerId) seenOffers.add(offerId);
+                        count++;
+                    }
+                }
+            });
+
+            return count;
+        }
+
         function discoverTabs() {
             // Try to find tabs on the page using various selectors
             const discoveredTabs = [];
@@ -142,9 +228,11 @@ runButton.addEventListener('click', () => {
                 const elements = document.querySelectorAll(selector);
                 elements.forEach(el => {
                     const text = el.textContent.toLowerCase();
-                    // Look for "New" or "All" tabs
+                    // Look for "Featured", "New" or "All" tabs
                     if (
-                        (text.includes('new') || text.includes('all')) &&
+                        (text.includes('featured') ||
+                            text.includes('new') ||
+                            text.includes('all')) &&
                         !discoveredTabs.includes(el)
                     ) {
                         discoveredTabs.push(el);
@@ -188,16 +276,20 @@ runButton.addEventListener('click', () => {
             // Click the tab
             tab.click();
 
-            chrome.runtime.sendMessage({
-                status: 'tab_switched',
-                message: `Switched to tab: ${tab.textContent}`
-            });
-
             // Scroll to top of page to ensure we start from the beginning
             window.scrollTo({ top: 0, behavior: 'smooth' });
 
             // Wait for tab content to load before continuing
             setTimeout(() => {
+                // Count buttons in new tab
+                totalButtonsInCurrentView = countClickableButtons();
+                buttonsClickedInCurrentView = 0;
+
+                chrome.runtime.sendMessage({
+                    status: 'tab_switched',
+                    message: `Switched to tab: ${tab.textContent}. Found ${totalButtonsInCurrentView} offers to add.`
+                });
+
                 if (!isPaused) {
                     addNextItem();
                 } else {
@@ -240,16 +332,25 @@ runButton.addEventListener('click', () => {
                 const option = options[currentAccountIndex];
                 if (option) {
                     option.click();
-                    chrome.runtime.sendMessage({
-                        status: 'account_switched',
-                        message: `Switched to account: ${option.getAttribute('label')}`
-                    });
 
                     // Scroll to top of page to ensure we start from the beginning
                     window.scrollTo({ top: 0, behavior: 'smooth' });
 
                     // Wait for account switch to complete before continuing (longer wait for account switches)
                     setTimeout(() => {
+                        // Reset processed offers set for new account
+                        processedOffersInCurrentAccount.clear();
+                        console.log('Cleared processed offers for new account');
+
+                        // Count buttons in new account
+                        totalButtonsInCurrentView = countClickableButtons();
+                        buttonsClickedInCurrentView = 0;
+
+                        chrome.runtime.sendMessage({
+                            status: 'account_switched',
+                            message: `Switched to account: ${option.getAttribute('label')}. Found ${totalButtonsInCurrentView} offers to add.`
+                        });
+
                         if (!isPaused) {
                             addNextItem();
                         } else {
@@ -322,6 +423,13 @@ runButton.addEventListener('click', () => {
                         );
                         return false;
                     }
+                }
+
+                // Check if we've already processed this offer in this account
+                const offerId = getOfferIdentifier(button);
+                if (offerId && processedOffersInCurrentAccount.has(offerId)) {
+                    console.log('Skipping duplicate offer:', offerId);
+                    return false;
                 }
 
                 // Only check if button is visible, don't require it to be in viewport
@@ -413,6 +521,13 @@ runButton.addEventListener('click', () => {
                         ? 'grid (all offers)'
                         : 'unknown';
 
+                // Mark this offer as processed to avoid duplicates
+                const offerId = getOfferIdentifier(buttonToClick);
+                if (offerId) {
+                    processedOffersInCurrentAccount.add(offerId);
+                    console.log('Marked offer as processed:', offerId);
+                }
+
                 const parentButton = buttonToClick.closest('[role="button"]');
                 if (parentButton) {
                     console.log('Clicking button in', section, 'section');
@@ -421,6 +536,16 @@ runButton.addEventListener('click', () => {
                     console.log('Clicking icon directly in', section, 'section');
                     buttonToClick.click();
                 }
+
+                // Increment counters after click
+                buttonsClickedInCurrentView++;
+                totalButtonsClickedOverall++;
+
+                // Report progress
+                chrome.runtime.sendMessage({
+                    status: 'offer_clicked',
+                    message: `Added offer ${buttonsClickedInCurrentView} of ${totalButtonsInCurrentView} (${totalButtonsClickedOverall} total)`
+                });
 
                 setTimeout(async () => {
                     if (!isPaused) {
@@ -449,11 +574,29 @@ runButton.addEventListener('click', () => {
             allTabs[0].click();
             // Wait for tab content to load before starting
             setTimeout(() => {
+                // Count buttons in first tab
+                totalButtonsInCurrentView = countClickableButtons();
+                buttonsClickedInCurrentView = 0;
+
+                chrome.runtime.sendMessage({
+                    status: 'buttons_counted',
+                    message: `Found ${totalButtonsInCurrentView} offers to add in ${allTabs[0].textContent}`
+                });
+
                 addNextItem();
             }, 1500);
         } else {
             // No tabs found, start immediately
             console.log('No tabs found, starting on current view');
+            // Count buttons in current view
+            totalButtonsInCurrentView = countClickableButtons();
+            buttonsClickedInCurrentView = 0;
+
+            chrome.runtime.sendMessage({
+                status: 'buttons_counted',
+                message: `Found ${totalButtonsInCurrentView} offers to add`
+            });
+
             addNextItem();
         }
     }; // --- End of Injected Script Definition ---

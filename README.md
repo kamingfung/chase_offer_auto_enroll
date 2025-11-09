@@ -67,36 +67,37 @@ This Chrome extension automates the tedious process of adding Chase Offers to yo
 ## 🔧 Installation
 
 1. **📥 Download the Extension**
-   ```bash
-   git clone https://github.com/yourusername/chase-offer-adder.git
-   ```
+
+    ```bash
+    git clone https://github.com/yourusername/chase-offer-adder.git
+    ```
 
 2. **🌐 Open Chrome Extensions**
-   - Navigate to `chrome://extensions/`
-   - Enable "Developer mode" (top-right toggle)
+    - Navigate to `chrome://extensions/`
+    - Enable "Developer mode" (top-right toggle)
 
 3. **📁 Load the Extension**
-   - Click "Load unpacked"
-   - Select the `chase-offer-adder` folder
-   - The extension icon will appear in your toolbar
+    - Click "Load unpacked"
+    - Select the `chase-offer-adder` folder
+    - The extension icon will appear in your toolbar
 
 ![Installation Screenshot](images/installation.png)
 
 ## 🎯 How to Use
 
 1. **Navigate to Chase Offers**
-   - Log into your Chase Online Banking
-   - Go to your available offers page
+    - Log into your Chase Online Banking
+    - Go to your available offers page
 
 2. **Start the Automation**
-   - Click the extension icon in your toolbar
-   - Click "Add offers" in the popup
-   - The automation begins immediately
+    - Click the extension icon in your toolbar
+    - Click "Add offers" in the popup
+    - The automation begins immediately
 
 3. **Monitor Progress**
-   - Watch real-time status updates
-   - Use Pause/Resume as needed
-   - Extension handles account switching automatically
+    - Watch real-time status updates
+    - Use Pause/Resume as needed
+    - Extension handles account switching automatically
 
 ### Controls
 
@@ -104,25 +105,28 @@ This Chrome extension automates the tedious process of adding Chase Offers to yo
 - **Pause**: Temporarily stop the process
 - **Resume**: Continue from where you left off
 
-
 ## 🔧 Troubleshooting
 
 **Extension not working:**
+
 - Ensure you're on a Chase Offers page
 - Refresh the page and try again
 - Check that the extension is enabled
 
 **No buttons found:**
+
 - Confirm you're on the correct offers page
 - Verify you have available offers
 - Make sure you're logged into Chase
 
 **Process stops:**
+
 - Use Pause/Resume to restart
 - Check your internet connection
 - Refresh and restart if needed
 
 **Tips for best results:**
+
 - Keep the popup open while running
 - Don't interact with the page during automation
 - Use a stable internet connection
@@ -144,13 +148,14 @@ A: No, this is a Chrome desktop extension only.
 **Q: What if it gets stuck?**
 A: Use the Pause button, refresh the page, and restart.
 
-
 ## 📸 Screenshots
 
 ### Extension Interface
+
 ![Extension Popup](images/popup.png)
 
 ### Chase Offers Page Example
+
 ![Chase Offers Page Example](images/offer_page_exmaple.png)
 
 ## ⚖️ Disclaimer

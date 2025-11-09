@@ -7,6 +7,7 @@ This document provides detailed technical information for developers working wit
 ### Core Components
 
 **popup.js** - Main extension logic with two distinct execution contexts:
+
 - **Popup Context**: Handles UI interactions, message passing, and Chrome API calls
 - **Injected Script Context**: Content script that runs on Chase pages, containing the automation logic
 
@@ -58,6 +59,7 @@ chase-offer-adder/
 The extension uses Chrome runtime messaging for popup ↔ injected script communication:
 
 **From Injected Script to Popup:**
+
 - `script_started` - Automation begins
 - `script_paused` - Process paused
 - `script_resumed` - Process resumed
@@ -67,6 +69,7 @@ The extension uses Chrome runtime messaging for popup ↔ injected script commun
 - `click_error` - Error during button clicking
 
 **From Popup to Injected Script:**
+
 - `pause` - Request to pause automation
 - `resume` - Request to resume automation
 
@@ -126,6 +129,7 @@ npm run format:check      # Check formatting without changes
 ### Test Files
 
 **tests/setup.js** - Global test configuration and Chrome API mocks:
+
 ```javascript
 // Mocks chrome.runtime, chrome.scripting, chrome.tabs APIs
 global.chrome = {
@@ -136,12 +140,14 @@ global.chrome = {
 ```
 
 **tests/popup.test.js** - Tests popup UI logic and Chrome API interactions:
+
 - Button click handlers
 - Message passing
 - UI state management
 - Chrome API calls
 
 **tests/injected-script.test.js** - Tests core automation logic:
+
 - Button detection algorithms
 - Retry mechanism
 - Account switching logic
@@ -154,12 +160,14 @@ global.chrome = {
 The retry mechanism prevents premature tab/account switching when pages are still loading. The script now implements **5 retries with 2-second delays** (increased from 3 retries with 1-second delays) for better reliability with Chase's dynamic page loading.
 
 **Key Features:**
+
 - **Smart Loading Detection**: Detects skeleton loaders and `aria-busy` states, resetting retry count when page is actively loading
 - **Automatic Scrolling**: Scrolls buttons into view before clicking if they're off-viewport
 - **Section Awareness**: Identifies whether buttons are in carousel (featured offers) or grid (all offers) sections
 - **Progress Preservation**: Only switches tabs/accounts after exhausting all retry attempts
 
 **Implementation (popup.js:282-357):**
+
 ```javascript
 // Enhanced retry logic with loading detection
 let retryCount = 0;
@@ -168,8 +176,9 @@ const retryDelay = 2000; // Increased from 1000ms
 
 if (!buttonToClick) {
     // Detect if page is still loading content
-    const isLoading = document.querySelector('[data-testid*="skeleton"], [class*="loading"]') ||
-                     document.querySelector('[aria-busy="true"]');
+    const isLoading =
+        document.querySelector('[data-testid*="skeleton"], [class*="loading"]') ||
+        document.querySelector('[aria-busy="true"]');
 
     if (isLoading) {
         retryCount = 0; // Reset retry count if page is actively loading
@@ -187,6 +196,7 @@ if (!buttonToClick) {
 ### Chrome Extension Permissions
 
 Required permissions in `manifest.json`:
+
 - `activeTab`: Required for content script injection
 - `scripting`: Required for `executeScript` API
 
@@ -224,7 +234,7 @@ module.exports = [
             globals: {
                 ...globals.browser,
                 ...globals.webextensions,
-                chrome: "readonly"
+                chrome: 'readonly'
             }
         }
     }
@@ -241,17 +251,12 @@ module.exports = [
 ### Pre-commit Hooks
 
 Configured via Husky and lint-staged:
+
 ```json
 {
     "lint-staged": {
-        "*.js": [
-            "prettier --write",
-            "eslint --fix", 
-            "jest --findRelatedTests"
-        ],
-        "*.{json,html}": [
-            "prettier --write"
-        ]
+        "*.js": ["prettier --write", "eslint --fix", "jest --findRelatedTests"],
+        "*.{json,html}": ["prettier --write"]
     }
 }
 ```
@@ -323,6 +328,7 @@ Configured via Husky and lint-staged:
 ### Console Logging
 
 Enable detailed logging by adding to injected script:
+
 ```javascript
 console.log('Popup received message:', request);
 ```
@@ -373,17 +379,20 @@ console.log('Popup received message:', request);
 ### Version 1.1 (Current)
 
 **Enhanced Retry Mechanism:**
+
 - Increased retry attempts from 3 to 5 for better reliability
 - Increased retry delay from 1 second to 2 seconds
 - Added smart loading detection (skeleton loaders, aria-busy states)
 - Automatically resets retry count when page is actively loading
 
 **Smart Button Detection:**
+
 - Automatic scrolling for off-viewport buttons
 - Section detection (carousel vs grid)
 - Better visibility checking
 
 **Improved Timing:**
+
 - Tab switch delay: 1.5 seconds (optimized for content loading)
 - Account switch delay: 2.5 seconds (increased for account transitions)
 - Random action delays: 300-1300ms (natural behavior simulation)

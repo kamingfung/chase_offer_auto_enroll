@@ -37,8 +37,8 @@ chase-offer-adder/
 1. **Script Injection**: Popup injects automation script into active Chase tab using `chrome.scripting.executeScript`
 2. **Multi-Section Detection**: Automatically searches for buttons in both carousel (featured offers) and grid (all offers) sections
 3. **Tab Discovery**: Automatically detects and cycles through page tabs if present
-4. **Button Detection**: Script scans for `mds-icon[type="ico_add_circle"][data-cy="commerce-tile-button"]` elements across all page sections
-5. **Already-Added Filter**: Skips offers with checkmark icons (`mds-icon[type="ico_checkmark_filled"]`) indicating they're already added
+4. **Button Detection**: Script scans for `[data-cy="commerce-tile-button"]` elements (SVG icons) across all page sections
+5. **Already-Added Filter**: Skips offers with checkmark icons (`svg[data-cy="commerce-tile-icon"]`) or success alerts indicating they're already added
 6. **Smart Scrolling**: Automatically scrolls buttons into view if they're off-viewport for better reliability
 7. **Section Detection**: Identifies whether buttons are in carousel (featured) or grid (all offers) sections
 8. **Retry Mechanism**: Implements 5-retry logic with 2-second delays to handle page loading delays (increased from 3 retries/1 second)
@@ -194,9 +194,9 @@ Required permissions in `manifest.json`:
 
 Extension relies on specific Chase selectors that may break with website updates:
 
-- **Add buttons**: `mds-icon[type="ico_add_circle"][data-cy="commerce-tile-button"]`
-- **Already-added indicators**: `mds-icon[type="ico_checkmark_filled"]`
-- **Offer tile containers**: `[data-cy*="offer-tile"]`, `[data-testid*="offer-tile"]`
+- **Add buttons**: `[data-cy="commerce-tile-button"]` (SVG elements, changed from mds-icon in Nov 2025)
+- **Already-added indicators**: `svg[data-cy="commerce-tile-icon"]` (checkmark icon) and `[data-cy="offer-tile-alert-container-success"]` (success alert)
+- **Offer tile containers**: `[data-cy="commerce-tile"]`, `[data-testid="commerce-tile"]`
 - **Carousel section**: `[data-testid*="carousel"]` (featured/highlighted offers)
 - **Grid section**: `[data-testid="grid-items-container"]` (all offers)
 - **Tab navigation** (optional): Multiple selectors including `button[data-cy*="new"]`, `[role="tab"][aria-label*="New"]`, etc.
@@ -205,8 +205,9 @@ Extension relies on specific Chase selectors that may break with website updates
 
 **Notes**:
 
+- **November 2025 Update**: Chase changed from `<mds-icon>` elements to direct `<svg>` elements for add buttons and checkmarks
 - The extension automatically searches for buttons in both carousel (featured offers) and grid (all offers) sections on the same page
-- Skips offers that already have checkmark icons, focusing only on offers with add buttons (plus icons)
+- Skips offers that already have checkmark icons or success alerts, focusing only on offers with add buttons (plus icons)
 - Tab discovery uses multiple selector patterns to find page tabs if they exist
 - The automation cycles through all tabs (if present) before switching to the next account
 

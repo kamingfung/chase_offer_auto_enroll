@@ -87,8 +87,10 @@ runButton.addEventListener('click', () => {
         console.log('Executing Chase Offer Script...');
 
         // --- Configuration & Helpers ---
-        const addButtonSelector = 'mds-icon[type="ico_add_circle"][data-cy="commerce-tile-button"]';
-        const checkmarkSelector = 'mds-icon[type="ico_checkmark_filled"]';
+        // Updated selectors for new Chase UI (Nov 2025)
+        // Chase now uses SVG elements instead of mds-icon elements
+        const addButtonSelector = '[data-cy="commerce-tile-button"]';
+        const checkmarkSelector = 'svg[data-cy="commerce-tile-icon"]'; // Checkmark icon for added offers
         const accountSelector = 'mds-select[id="select-credit-card-account"]';
         // Note: Both "Featured" and "All offers" sections are visible on the same page
         // The script processes all sections by finding all buttons across both sections

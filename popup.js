@@ -74,7 +74,7 @@ function showNotification(stats) {
     chrome.notifications.create({
         type: 'basic',
         iconUrl: 'images/icon128.png',
-        title: 'Chase Offers Complete! 🎉',
+        title: 'Chase Offers Complete!',
         message: `Added ${stats.totalOffersAdded} offers across ${stats.accountsProcessed} accounts in ${stats.timeTaken}`,
         priority: 2
     });
@@ -129,7 +129,7 @@ chrome.runtime.onMessage.addListener((request, _sender, _sendResponse) => {
 
         stats.timeTaken = timeTaken;
 
-        updateStatus('Completed! 🎉', 'status-success');
+        updateStatus('Completed!', 'status-success');
         pauseButton.style.display = 'none';
         progressContainer.style.display = 'none';
         displayStats(stats);
@@ -201,8 +201,8 @@ runButton.addEventListener('click', () => {
         // Security: Redact PII from logs and messages
         function redactPII(text) {
             if (!text) return text;
-            // Redact last 4 digits of card numbers (e.g., " - 1234" or "...1234")
-            return text.replace(/(\s-\s|\.\.\.)\d{4}/g, '$1****').replace(/\(?\d{4}\)?$/g, '****');
+            // No longer redacting last 4 digits as requested
+            return text;
         }
 
         // Statistics tracking

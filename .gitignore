@@ -5,6 +5,8 @@ example
 
 # ignore venv
 .venv
+uv.lock
+.python-version
 
 # Mac OS
 .DS_Store

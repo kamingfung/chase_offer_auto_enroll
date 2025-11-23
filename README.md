@@ -160,9 +160,10 @@ A: Use the Pause button, refresh the page, and restart.
 
 ## ⚖️ Disclaimer
 
-- This extension is provided "as-is" without warranty
+- **Personal coding practice project**
 - Not affiliated with JPMorgan Chase & Co.
-- Use responsibly and in moderation
+- Use at your own risk
+- This extension is provided "as-is" without warranty
 - Chase website changes may break functionality
 - Your responsibility to comply with Chase's terms of service
 

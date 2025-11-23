@@ -167,12 +167,10 @@ button:hover::before {
     left: 0;
     bottom: 0;
     right: 0;
-    background: linear-gradient(
-        90deg,
-        transparent,
-        rgba(255, 255, 255, 0.3),
-        transparent
-    );
+    background: linear-gradient(90deg,
+            transparent,
+            rgba(255, 255, 255, 0.3),
+            transparent);
     animation: shimmer 2s infinite;
 }
 
@@ -180,6 +178,7 @@ button:hover::before {
     0% {
         transform: translateX(-100%);
     }
+
     100% {
         transform: translateX(100%);
     }
@@ -278,9 +277,12 @@ button:hover::before {
 }
 
 @keyframes pulse {
-    0%, 100% {
+
+    0%,
+    100% {
         opacity: 1;
     }
+
     50% {
         opacity: 0.5;
     }
@@ -365,12 +367,19 @@ button:hover::before {
 
 /* Footer */
 .footer {
-    background: white;
-    padding: 12px 20px;
+    margin-top: auto;
+    padding-top: 15px;
     text-align: center;
-    border-top: 1px solid rgba(0, 0, 0, 0.05);
     font-size: 11px;
-    color: var(--text-secondary);
+    color: #9CA3AF;
+    border-top: 1px solid #E5E7EB;
+}
+
+.disclaimer {
+    font-size: 10px;
+    color: #D1D5DB;
+    margin-top: 4px;
+    font-style: italic;
 }
 
 /* Responsive adjustments */

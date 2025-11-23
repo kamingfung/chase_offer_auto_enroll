@@ -1,0 +1,600 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Mock Chase Offers Page - Testing</title>
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+                background: #f5f7fa;
+                padding: 20px;
+            }
+
+            .container {
+                max-width: 1200px;
+                margin: 0 auto;
+            }
+
+            .header {
+                background: white;
+                padding: 20px;
+                border-radius: 8px;
+                margin-bottom: 20px;
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            }
+
+            .header h1 {
+                color: #0066cc;
+                font-size: 24px;
+                margin-bottom: 10px;
+            }
+
+            .account-selector {
+                margin: 20px 0;
+            }
+
+            mds-select {
+                display: inline-block;
+                padding: 10px 15px;
+                background: white;
+                border: 1px solid #ccc;
+                border-radius: 4px;
+                cursor: pointer;
+                min-width: 250px;
+            }
+
+            mds-select-option {
+                display: block;
+                padding: 10px;
+                cursor: pointer;
+            }
+
+            mds-select-option:hover {
+                background: #f0f0f0;
+            }
+
+            .section-title {
+                font-size: 20px;
+                font-weight: 600;
+                margin: 30px 0 15px 0;
+                color: #1f2937;
+            }
+
+            .offers-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+                gap: 20px;
+                margin-bottom: 30px;
+            }
+
+            [data-cy='commerce-tile'],
+            [data-testid='commerce-tile'] {
+                background: white;
+                border-radius: 8px;
+                padding: 20px;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+                transition: transform 0.2s;
+            }
+
+            [data-cy='commerce-tile']:hover,
+            [data-testid='commerce-tile']:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            }
+
+            .merchant-name {
+                font-weight: 600;
+                font-size: 16px;
+                margin-bottom: 8px;
+                color: #1f2937;
+            }
+
+            .offer-details {
+                color: #6b7280;
+                font-size: 14px;
+                margin-bottom: 15px;
+            }
+
+            .cashback {
+                color: #10b981;
+                font-weight: 600;
+                font-size: 18px;
+                margin: 10px 0;
+            }
+
+            [role='button'] {
+                width: 100%;
+                padding: 12px;
+                border: none;
+                border-radius: 6px;
+                cursor: pointer;
+                font-weight: 600;
+                font-size: 14px;
+                transition: all 0.2s;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+            }
+
+            [role='button']:not(.added) {
+                background: #0066cc;
+                color: white;
+            }
+
+            [role='button']:not(.added):hover {
+                background: #0052a3;
+            }
+
+            [role='button'].added {
+                background: #d1fae5;
+                color: #065f46;
+                cursor: default;
+            }
+
+            svg[data-cy='commerce-tile-button'] {
+                width: 20px;
+                height: 20px;
+            }
+
+            svg[data-cy='commerce-tile-icon'] {
+                width: 20px;
+                height: 20px;
+            }
+
+            .alert-success {
+                background: #d1fae5;
+                color: #065f46;
+                padding: 8px 12px;
+                border-radius: 4px;
+                font-size: 13px;
+                margin-top: 10px;
+                display: none;
+            }
+
+            .added .alert-success {
+                display: block;
+            }
+
+            .instructions {
+                background: #fef3c7;
+                border: 1px solid #fcd34d;
+                border-radius: 8px;
+                padding: 20px;
+                margin-bottom: 20px;
+            }
+
+            .instructions h2 {
+                color: #92400e;
+                font-size: 18px;
+                margin-bottom: 10px;
+            }
+
+            .instructions ul {
+                margin-left: 20px;
+                color: #78350f;
+            }
+
+            .instructions li {
+                margin: 5px 0;
+            }
+
+            [data-testid='grid-items-container'] {
+                margin-top: 20px;
+            }
+        </style>
+    </head>
+
+    <body>
+        <div class="container">
+            <div class="instructions">
+                <h2>🧪 Mock Chase Offers Page for Testing</h2>
+                <ul>
+                    <li>This page simulates the Chase Offers interface</li>
+                    <li>Load the Chase Offer Adder extension in Chrome</li>
+                    <li>Click the extension icon and click "Add offers"</li>
+                    <li>Watch the automation work through all offers</li>
+                    <li>Test the new features: progress bar, statistics, and notification</li>
+                </ul>
+            </div>
+
+            <div class="header">
+                <h1>Chase Offers</h1>
+                <p>Activate offers and earn rewards on your purchases</p>
+
+                <div class="account-selector">
+                    <label for="select-credit-card-account">Select Account:</label>
+                    <mds-select id="select-credit-card-account">
+                        <mds-select-option label="Chase Freedom Unlimited® - 1234" selected>
+                            Chase Freedom Unlimited® - 1234
+                        </mds-select-option>
+                        <mds-select-option label="Chase Sapphire Reserve® - 5678">
+                            Chase Sapphire Reserve® - 5678
+                        </mds-select-option>
+                        <mds-select-option label="Chase Freedom Flex℠ - 9012">
+                            Chase Freedom Flex℠ - 9012
+                        </mds-select-option>
+                    </mds-select>
+                </div>
+            </div>
+
+            <!-- Grid Section (All Offers) -->
+            <div data-testid="grid-items-container">
+                <h2 class="section-title">All Offers</h2>
+                <div class="offers-grid">
+                    <!-- Offer 1 -->
+                    <div
+                        data-cy="commerce-tile"
+                        data-testid="commerce-tile"
+                        id="offer_1"
+                        aria-label="1 of 12 [Starbucks] 5% cash back Add Offer"
+                    >
+                        <div class="merchant-name mds-body-small-heavier">Starbucks</div>
+                        <div class="cashback">5% cash back</div>
+                        <div class="offer-details">Earn 5% cash back on purchases at Starbucks</div>
+                        <button role="button">
+                            <svg
+                                data-cy="commerce-tile-button"
+                                viewBox="0 0 24 24"
+                                fill="currentColor"
+                            >
+                                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                            </svg>
+                            Add Offer
+                        </button>
+                        <div class="alert-success" data-cy="offer-tile-alert-container-success">
+                            Offer added!
+                        </div>
+                    </div>
+
+                    <!-- Offer 2 -->
+                    <div
+                        data-cy="commerce-tile"
+                        data-testid="commerce-tile"
+                        id="offer_2"
+                        aria-label="2 of 12 [Amazon] 10% cash back Add Offer"
+                    >
+                        <div class="merchant-name mds-body-small-heavier">Amazon</div>
+                        <div class="cashback">10% cash back</div>
+                        <div class="offer-details">
+                            Earn 10% cash back on Amazon purchases up to $50
+                        </div>
+                        <button role="button">
+                            <svg
+                                data-cy="commerce-tile-button"
+                                viewBox="0 0 24 24"
+                                fill="currentColor"
+                            >
+                                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                            </svg>
+                            Add Offer
+                        </button>
+                        <div class="alert-success" data-cy="offer-tile-alert-container-success">
+                            Offer added!
+                        </div>
+                    </div>
+
+                    <!-- Offer 3 -->
+                    <div
+                        data-cy="commerce-tile"
+                        data-testid="commerce-tile"
+                        id="offer_3"
+                        aria-label="3 of 12 [Whole Foods] 7% cash back Add Offer"
+                    >
+                        <div class="merchant-name mds-body-small-heavier">Whole Foods</div>
+                        <div class="cashback">7% cash back</div>
+                        <div class="offer-details">Get 7% back on Whole Foods purchases</div>
+                        <button role="button">
+                            <svg
+                                data-cy="commerce-tile-button"
+                                viewBox="0 0 24 24"
+                                fill="currentColor"
+                            >
+                                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                            </svg>
+                            Add Offer
+                        </button>
+                        <div class="alert-success" data-cy="offer-tile-alert-container-success">
+                            Offer added!
+                        </div>
+                    </div>
+
+                    <!-- Offer 4 -->
+                    <div
+                        data-cy="commerce-tile"
+                        data-testid="commerce-tile"
+                        id="offer_4"
+                        aria-label="4 of 12 [Target] 5% cash back Add Offer"
+                    >
+                        <div class="merchant-name mds-body-small-heavier">Target</div>
+                        <div class="cashback">5% cash back</div>
+                        <div class="offer-details">Earn 5% cash back at Target stores</div>
+                        <button role="button">
+                            <svg
+                                data-cy="commerce-tile-button"
+                                viewBox="0 0 24 24"
+                                fill="currentColor"
+                            >
+                                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                            </svg>
+                            Add Offer
+                        </button>
+                        <div class="alert-success" data-cy="offer-tile-alert-container-success">
+                            Offer added!
+                        </div>
+                    </div>
+
+                    <!-- Offer 5 -->
+                    <div
+                        data-cy="commerce-tile"
+                        data-testid="commerce-tile"
+                        id="offer_5"
+                        aria-label="5 of 12 [Uber] $10 statement credit Add Offer"
+                    >
+                        <div class="merchant-name mds-body-small-heavier">Uber</div>
+                        <div class="cashback">$10 statement credit</div>
+                        <div class="offer-details">Get $10 back on $50+ Uber rides</div>
+                        <button role="button">
+                            <svg
+                                data-cy="commerce-tile-button"
+                                viewBox="0 0 24 24"
+                                fill="currentColor"
+                            >
+                                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                            </svg>
+                            Add Offer
+                        </button>
+                        <div class="alert-success" data-cy="offer-tile-alert-container-success">
+                            Offer added!
+                        </div>
+                    </div>
+
+                    <!-- Offer 6 -->
+                    <div
+                        data-cy="commerce-tile"
+                        data-testid="commerce-tile"
+                        id="offer_6"
+                        aria-label="6 of 12 [DoorDash] 15% cash back Add Offer"
+                    >
+                        <div class="merchant-name mds-body-small-heavier">DoorDash</div>
+                        <div class="cashback">15% cash back</div>
+                        <div class="offer-details">Earn 15% back on DoorDash orders</div>
+                        <button role="button">
+                            <svg
+                                data-cy="commerce-tile-button"
+                                viewBox="0 0 24 24"
+                                fill="currentColor"
+                            >
+                                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                            </svg>
+                            Add Offer
+                        </button>
+                        <div class="alert-success" data-cy="offer-tile-alert-container-success">
+                            Offer added!
+                        </div>
+                    </div>
+
+                    <!-- Offer 7 -->
+                    <div
+                        data-cy="commerce-tile"
+                        data-testid="commerce-tile"
+                        id="offer_7"
+                        aria-label="7 of 12 [Best Buy] 8% cash back Add Offer"
+                    >
+                        <div class="merchant-name mds-body-small-heavier">Best Buy</div>
+                        <div class="cashback">8% cash back</div>
+                        <div class="offer-details">Get 8% back on electronics purchases</div>
+                        <button role="button">
+                            <svg
+                                data-cy="commerce-tile-button"
+                                viewBox="0 0 24 24"
+                                fill="currentColor"
+                            >
+                                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                            </svg>
+                            Add Offer
+                        </button>
+                        <div class="alert-success" data-cy="offer-tile-alert-container-success">
+                            Offer added!
+                        </div>
+                    </div>
+
+                    <!-- Offer 8 -->
+                    <div
+                        data-cy="commerce-tile"
+                        data-testid="commerce-tile"
+                        id="offer_8"
+                        aria-label="8 of 12 [Nike] 10% cash back Add Offer"
+                    >
+                        <div class="merchant-name mds-body-small-heavier">Nike</div>
+                        <div class="cashback">10% cash back</div>
+                        <div class="offer-details">Earn 10% back on Nike.com purchases</div>
+                        <button role="button">
+                            <svg
+                                data-cy="commerce-tile-button"
+                                viewBox="0 0 24 24"
+                                fill="currentColor"
+                            >
+                                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                            </svg>
+                            Add Offer
+                        </button>
+                        <div class="alert-success" data-cy="offer-tile-alert-container-success">
+                            Offer added!
+                        </div>
+                    </div>
+
+                    <!-- Offer 9 -->
+                    <div
+                        data-cy="commerce-tile"
+                        data-testid="commerce-tile"
+                        id="offer_9"
+                        aria-label="9 of 12 [Walmart] 5% cash back Add Offer"
+                    >
+                        <div class="merchant-name mds-body-small-heavier">Walmart</div>
+                        <div class="cashback">5% cash back</div>
+                        <div class="offer-details">Get 5% back on Walmart purchases</div>
+                        <button role="button">
+                            <svg
+                                data-cy="commerce-tile-button"
+                                viewBox="0 0 24 24"
+                                fill="currentColor"
+                            >
+                                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                            </svg>
+                            Add Offer
+                        </button>
+                        <div class="alert-success" data-cy="offer-tile-alert-container-success">
+                            Offer added!
+                        </div>
+                    </div>
+
+                    <!-- Offer 10 -->
+                    <div
+                        data-cy="commerce-tile"
+                        data-testid="commerce-tile"
+                        id="offer_10"
+                        aria-label="10 of 12 [Apple] 12% cash back Add Offer"
+                    >
+                        <div class="merchant-name mds-body-small-heavier">Apple</div>
+                        <div class="cashback">12% cash back</div>
+                        <div class="offer-details">Earn 12% back on Apple Store purchases</div>
+                        <button role="button">
+                            <svg
+                                data-cy="commerce-tile-button"
+                                viewBox="0 0 24 24"
+                                fill="currentColor"
+                            >
+                                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                            </svg>
+                            Add Offer
+                        </button>
+                        <div class="alert-success" data-cy="offer-tile-alert-container-success">
+                            Offer added!
+                        </div>
+                    </div>
+
+                    <!-- Offer 11 -->
+                    <div
+                        data-cy="commerce-tile"
+                        data-testid="commerce-tile"
+                        id="offer_11"
+                        aria-label="11 of 12 [CVS] 6% cash back Add Offer"
+                    >
+                        <div class="merchant-name mds-body-small-heavier">CVS Pharmacy</div>
+                        <div class="cashback">6% cash back</div>
+                        <div class="offer-details">Get 6% back at CVS Pharmacy</div>
+                        <button role="button">
+                            <svg
+                                data-cy="commerce-tile-button"
+                                viewBox="0 0 24 24"
+                                fill="currentColor"
+                            >
+                                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                            </svg>
+                            Add Offer
+                        </button>
+                        <div class="alert-success" data-cy="offer-tile-alert-container-success">
+                            Offer added!
+                        </div>
+                    </div>
+
+                    <!-- Offer 12 -->
+                    <div
+                        data-cy="commerce-tile"
+                        data-testid="commerce-tile"
+                        id="offer_12"
+                        aria-label="12 of 12 [Costco] 4% cash back Add Offer"
+                    >
+                        <div class="merchant-name mds-body-small-heavier">Costco</div>
+                        <div class="cashback">4% cash back</div>
+                        <div class="offer-details">Earn 4% back on Costco purchases</div>
+                        <button role="button">
+                            <svg
+                                data-cy="commerce-tile-button"
+                                viewBox="0 0 24 24"
+                                fill="currentColor"
+                            >
+                                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                            </svg>
+                            Add Offer
+                        </button>
+                        <div class="alert-success" data-cy="offer-tile-alert-container-success">
+                            Offer added!
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            // Simulate offer activation
+            document.querySelectorAll('[role="button"]').forEach(button => {
+                button.addEventListener('click', function () {
+                    if (!this.classList.contains('added')) {
+                        this.classList.add('added');
+
+                        // Replace plus icon with checkmark
+                        const svg = this.querySelector('svg[data-cy="commerce-tile-button"]');
+                        if (svg) {
+                            svg.setAttribute('data-cy', 'commerce-tile-icon');
+                            svg.innerHTML =
+                                '<path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>';
+                        }
+
+                        this.textContent = '';
+                        this.appendChild(svg);
+                        this.appendChild(document.createTextNode(' Added'));
+
+                        // Simulate navigation back
+                        setTimeout(() => {
+                            window.history.pushState({}, '', window.location.href);
+                        }, 100);
+                    }
+                });
+            });
+
+            // Simulate account switching
+            const accountSelect = document.getElementById('select-credit-card-account');
+            if (accountSelect) {
+                accountSelect.addEventListener('click', function () {
+                    const options = this.querySelectorAll('mds-select-option');
+                    options.forEach(option => {
+                        option.style.display = 'block';
+                        option.addEventListener('click', function (e) {
+                            e.stopPropagation();
+
+                            // Update selected account
+                            options.forEach(opt => opt.removeAttribute('selected'));
+                            this.setAttribute('selected', '');
+
+                            // Reset all offers to unadded state
+                            document.querySelectorAll('[role="button"].added').forEach(btn => {
+                                btn.classList.remove('added');
+                                const svg = btn.querySelector('svg');
+                                if (svg) {
+                                    svg.setAttribute('data-cy', 'commerce-tile-button');
+                                    svg.innerHTML =
+                                        '<path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>';
+                                }
+                                btn.textContent = '';
+                                btn.appendChild(svg);
+                                btn.appendChild(document.createTextNode(' Add Offer'));
+                            });
+
+                            // Hide dropdown
+                            options.forEach(opt => (opt.style.display = 'none'));
+                        });
+                    });
+                });
+            }
+        </script>
+    </body>
+</html>

@@ -1,5 +1,7 @@
 node_modules/
 
+
+
 CLAUDE.md
 example
 
@@ -10,3 +12,7 @@ uv.lock
 
 # Mac OS
 .DS_Store
+
+# dev
+.claude
+.husky

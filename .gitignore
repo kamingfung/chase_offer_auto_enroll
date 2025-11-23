@@ -2,3 +2,9 @@ node_modules/
 
 CLAUDE.md
 example
+
+# ignore venv
+.venv
+
+# Mac OS
+.DS_Store

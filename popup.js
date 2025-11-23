@@ -6,8 +6,30 @@ const progressFill = document.querySelector('.progress-fill');
 const progressText = document.querySelector('.progress-text');
 const statsContainer = document.getElementById('statsContainer');
 
+// Dog images
+const dogHeader = document.getElementById('dog-header');
+const dogWorking = document.getElementById('dog-working');
+const dogSuccess = document.getElementById('dog-success');
+
 let isPaused = false;
 let startTime = null;
+
+// Helper to switch dog images
+function showDog(type) {
+    // Hide all first
+    dogHeader.style.display = 'none';
+    dogWorking.style.display = 'none';
+    dogSuccess.style.display = 'none';
+
+    // Show requested one
+    if (type === 'working') {
+        dogWorking.style.display = 'block';
+    } else if (type === 'success') {
+        dogSuccess.style.display = 'block';
+    } else {
+        dogHeader.style.display = 'block';
+    }
+}
 
 // Helper function to update status with CSS classes
 function updateStatus(message, statusClass) {
@@ -68,6 +90,7 @@ chrome.runtime.onMessage.addListener((request, _sender, _sendResponse) => {
         pauseButton.style.display = 'inline-block';
         progressContainer.style.display = 'block';
         statsContainer.style.display = 'none';
+        showDog('working');
     } else if (request.status === 'buttons_counted') {
         updateStatus(request.message, 'status-running');
         if (request.total) {
@@ -81,9 +104,11 @@ chrome.runtime.onMessage.addListener((request, _sender, _sendResponse) => {
     } else if (request.status === 'script_paused') {
         updateStatus('Paused', 'status-paused');
         pauseButton.textContent = 'Resume';
+        showDog('header'); // Back to sitting dog when paused
     } else if (request.status === 'script_resumed') {
         updateStatus('Adding offers...', 'status-running');
         pauseButton.textContent = 'Pause';
+        showDog('working');
     } else if (request.status === 'account_switched') {
         updateStatus(request.message, 'status-running');
     } else if (request.status === 'tab_switched') {
@@ -109,10 +134,12 @@ chrome.runtime.onMessage.addListener((request, _sender, _sendResponse) => {
         progressContainer.style.display = 'none';
         displayStats(stats);
         showNotification(stats);
+        showDog('success');
     } else if (request.status === 'no_buttons_found') {
         updateStatus(request.message, 'status-warning');
         pauseButton.style.display = 'none';
         progressContainer.style.display = 'none';
+        showDog('header');
     } else if (request.status === 'click_error') {
         updateStatus(`Error: ${request.message}`, 'status-error');
     }
@@ -140,6 +167,7 @@ runButton.addEventListener('click', () => {
     isPaused = false;
     pauseButton.textContent = 'Pause';
     statsContainer.style.display = 'none';
+    showDog('working');
 
     // --- Injected Script Definition ---
     // This function gets sent to the Chase page to run

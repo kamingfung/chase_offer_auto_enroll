@@ -38,6 +38,7 @@ function updateStatus(message, statusClass) {
 }
 
 // Helper function to update progress bar
+// Helper function to update progress bar
 function updateProgress(current, total) {
     if (total === 0) return;
 

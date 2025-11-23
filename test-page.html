@@ -189,6 +189,60 @@
             [data-testid='grid-items-container'] {
                 margin-top: 20px;
             }
+
+            /* Tabs */
+            .tabs {
+                display: flex;
+                border-bottom: 1px solid #e5e7eb;
+                margin-bottom: 20px;
+                background: white;
+                padding: 0 20px;
+                border-radius: 8px 8px 0 0;
+            }
+
+            [role='tab'] {
+                padding: 15px 20px;
+                background: none;
+                border: none;
+                border-bottom: 3px solid transparent;
+                cursor: pointer;
+                font-weight: 600;
+                color: #6b7280;
+                font-size: 16px;
+            }
+
+            [role='tab'].active {
+                color: #0066cc;
+                border-bottom-color: #0066cc;
+            }
+
+            [role='tab']:hover:not(.active) {
+                color: #374151;
+            }
+
+            /* Carousel */
+            .carousel-section {
+                margin-bottom: 40px;
+                overflow: hidden;
+            }
+
+            .carousel-track {
+                display: flex;
+                gap: 20px;
+                overflow-x: auto;
+                padding: 10px 5px 20px 5px;
+                scroll-behavior: smooth;
+            }
+
+            .carousel-item {
+                min-width: 280px;
+                width: 280px;
+                background: white;
+                border-radius: 8px;
+                padding: 20px;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+                flex-shrink: 0;
+            }
         </style>
     </head>
 
@@ -225,6 +279,91 @@
                 </div>
             </div>
 
+            <!-- Navigation Tabs -->
+            <div class="tabs" role="tablist">
+                <button role="tab" aria-selected="true" class="active">Available</button>
+                <button role="tab" aria-selected="false">Added</button>
+                <button role="tab" aria-selected="false">Expired</button>
+            </div>
+
+            <!-- Carousel Section (Featured Offers) -->
+            <div data-testid="carousel-container" class="carousel-section">
+                <h2 class="section-title">Featured Offers</h2>
+                <div class="carousel-track">
+                    <!-- Offer C1 -->
+                    <div
+                        data-cy="commerce-tile"
+                        data-testid="commerce-tile"
+                        id="offer_c1"
+                        class="carousel-item"
+                        aria-label="1 of 5 [Lululemon] 10% cash back Add Offer"
+                    >
+                        <div class="merchant-name mds-body-small-heavier">Lululemon</div>
+                        <div class="cashback">10% cash back</div>
+                        <div class="offer-details">Earn 10% back on Lululemon purchases</div>
+                        <button role="button">
+                            <svg
+                                data-cy="commerce-tile-button"
+                                viewBox="0 0 24 24"
+                                fill="currentColor"
+                            >
+                                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                            </svg>
+                            Add Offer
+                        </button>
+                        <div class="alert-success">Offer added!</div>
+                    </div>
+
+                    <!-- Offer C2 -->
+                    <div
+                        data-cy="commerce-tile"
+                        data-testid="commerce-tile"
+                        id="offer_c2"
+                        class="carousel-item"
+                        aria-label="2 of 5 [Adidas] 5% cash back Add Offer"
+                    >
+                        <div class="merchant-name mds-body-small-heavier">Adidas</div>
+                        <div class="cashback">5% cash back</div>
+                        <div class="offer-details">Get 5% back on Adidas.com</div>
+                        <button role="button">
+                            <svg
+                                data-cy="commerce-tile-button"
+                                viewBox="0 0 24 24"
+                                fill="currentColor"
+                            >
+                                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                            </svg>
+                            Add Offer
+                        </button>
+                        <div class="alert-success">Offer added!</div>
+                    </div>
+
+                    <!-- Offer C3 -->
+                    <div
+                        data-cy="commerce-tile"
+                        data-testid="commerce-tile"
+                        id="offer_c3"
+                        class="carousel-item"
+                        aria-label="3 of 5 [Under Armour] 8% cash back Add Offer"
+                    >
+                        <div class="merchant-name mds-body-small-heavier">Under Armour</div>
+                        <div class="cashback">8% cash back</div>
+                        <div class="offer-details">Earn 8% back on Under Armour</div>
+                        <button role="button">
+                            <svg
+                                data-cy="commerce-tile-button"
+                                viewBox="0 0 24 24"
+                                fill="currentColor"
+                            >
+                                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                            </svg>
+                            Add Offer
+                        </button>
+                        <div class="alert-success">Offer added!</div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Grid Section (All Offers) -->
             <div data-testid="grid-items-container">
                 <h2 class="section-title">All Offers</h2>
@@ -249,9 +388,7 @@
                             </svg>
                             Add Offer
                         </button>
-                        <div class="alert-success" data-cy="offer-tile-alert-container-success">
-                            Offer added!
-                        </div>
+                        <div class="alert-success">Offer added!</div>
                     </div>
 
                     <!-- Offer 2 -->
@@ -276,9 +413,7 @@
                             </svg>
                             Add Offer
                         </button>
-                        <div class="alert-success" data-cy="offer-tile-alert-container-success">
-                            Offer added!
-                        </div>
+                        <div class="alert-success">Offer added!</div>
                     </div>
 
                     <!-- Offer 3 -->
@@ -301,9 +436,7 @@
                             </svg>
                             Add Offer
                         </button>
-                        <div class="alert-success" data-cy="offer-tile-alert-container-success">
-                            Offer added!
-                        </div>
+                        <div class="alert-success">Offer added!</div>
                     </div>
 
                     <!-- Offer 4 -->
@@ -326,9 +459,7 @@
                             </svg>
                             Add Offer
                         </button>
-                        <div class="alert-success" data-cy="offer-tile-alert-container-success">
-                            Offer added!
-                        </div>
+                        <div class="alert-success">Offer added!</div>
                     </div>
 
                     <!-- Offer 5 -->
@@ -351,9 +482,7 @@
                             </svg>
                             Add Offer
                         </button>
-                        <div class="alert-success" data-cy="offer-tile-alert-container-success">
-                            Offer added!
-                        </div>
+                        <div class="alert-success">Offer added!</div>
                     </div>
 
                     <!-- Offer 6 -->
@@ -376,9 +505,7 @@
                             </svg>
                             Add Offer
                         </button>
-                        <div class="alert-success" data-cy="offer-tile-alert-container-success">
-                            Offer added!
-                        </div>
+                        <div class="alert-success">Offer added!</div>
                     </div>
 
                     <!-- Offer 7 -->
@@ -401,9 +528,7 @@
                             </svg>
                             Add Offer
                         </button>
-                        <div class="alert-success" data-cy="offer-tile-alert-container-success">
-                            Offer added!
-                        </div>
+                        <div class="alert-success">Offer added!</div>
                     </div>
 
                     <!-- Offer 8 -->
@@ -426,9 +551,7 @@
                             </svg>
                             Add Offer
                         </button>
-                        <div class="alert-success" data-cy="offer-tile-alert-container-success">
-                            Offer added!
-                        </div>
+                        <div class="alert-success">Offer added!</div>
                     </div>
 
                     <!-- Offer 9 -->
@@ -451,9 +574,7 @@
                             </svg>
                             Add Offer
                         </button>
-                        <div class="alert-success" data-cy="offer-tile-alert-container-success">
-                            Offer added!
-                        </div>
+                        <div class="alert-success">Offer added!</div>
                     </div>
 
                     <!-- Offer 10 -->
@@ -476,9 +597,7 @@
                             </svg>
                             Add Offer
                         </button>
-                        <div class="alert-success" data-cy="offer-tile-alert-container-success">
-                            Offer added!
-                        </div>
+                        <div class="alert-success">Offer added!</div>
                     </div>
 
                     <!-- Offer 11 -->
@@ -501,9 +620,7 @@
                             </svg>
                             Add Offer
                         </button>
-                        <div class="alert-success" data-cy="offer-tile-alert-container-success">
-                            Offer added!
-                        </div>
+                        <div class="alert-success">Offer added!</div>
                     </div>
 
                     <!-- Offer 12 -->
@@ -526,9 +643,7 @@
                             </svg>
                             Add Offer
                         </button>
-                        <div class="alert-success" data-cy="offer-tile-alert-container-success">
-                            Offer added!
-                        </div>
+                        <div class="alert-success">Offer added!</div>
                     </div>
                 </div>
             </div>

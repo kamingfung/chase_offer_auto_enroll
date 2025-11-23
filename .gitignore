@@ -4,6 +4,7 @@ node_modules/
 
 CLAUDE.md
 example
+reference
 
 # ignore venv
 .venv

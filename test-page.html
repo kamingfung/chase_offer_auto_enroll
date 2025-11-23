@@ -280,15 +280,23 @@
             </div>
 
             <!-- Navigation Tabs -->
-            <div class="tabs" role="tablist">
+            <div
+                class="tabs"
+                role="tablist"
+                data-testid="carousel-offer-hub-category-navbar"
+                data-cy="carouselOfferHubCategoryNavbar"
+            >
                 <button role="tab" aria-selected="true" class="active">Available</button>
                 <button role="tab" aria-selected="false">Added</button>
                 <button role="tab" aria-selected="false">Expired</button>
             </div>
 
             <!-- Carousel Section (Featured Offers) -->
-            <div data-testid="carousel-container" class="carousel-section">
-                <h2 class="section-title">Featured Offers</h2>
+            <div
+                data-testid="carousel-featured-category-offer-tile-list-container"
+                class="carousel-section"
+            >
+                <h2 class="section-title" data-testid="carousel_category_name">Featured Offers</h2>
                 <div class="carousel-track">
                     <!-- Offer C1 -->
                     <div
@@ -365,8 +373,8 @@
             </div>
 
             <!-- Grid Section (All Offers) -->
-            <div data-testid="grid-items-container">
-                <h2 class="section-title">All Offers</h2>
+            <div data-testid="carousel-all-categories-grid-container">
+                <h2 class="section-title" data-testid="carousel_category_name">All Offers</h2>
                 <div class="offers-grid">
                     <!-- Offer 1 -->
                     <div

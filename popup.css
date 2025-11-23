@@ -5,18 +5,29 @@
 
 /* Root Variables */
 :root {
-    --primary-color: #0066CC;
-    --primary-dark: #004C99;
-    --success-color: #10B981;
-    --warning-color: #F59E0B;
-    --error-color: #EF4444;
-    --info-color: #3B82F6;
-    --bg-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    --text-primary: #1F2937;
-    --text-secondary: #6B7280;
-    --border-radius: 8px;
-    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
-    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+    /* Colorblind Safe Palette (IBM/Wong) */
+    --primary-color: #0077BB;
+    /* Blue - Distinct */
+    --primary-variant: #005FA3;
+    /* Darker Blue */
+    --secondary-color: #EE7733;
+    /* Orange - High Contrast vs Blue */
+    --background-color: #FAFAFA;
+    --surface-color: #FFFFFF;
+    --error-color: #CC3311;
+    /* Red/Vermilion - Distinct from Teal */
+    --success-color: #009988;
+    /* Teal - Distinct from Red */
+    --warning-color: #EE3377;
+    /* Magenta - Distinct */
+
+    --on-primary: #FFFFFF;
+    --on-surface: #000000;
+    --text-primary: rgba(0, 0, 0, 0.9);
+    --text-secondary: rgba(0, 0, 0, 0.7);
+
+    --shadow-1: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
+    --shadow-2: 0 3px 6px rgba(0, 0, 0, 0.16), 0 3px 6px rgba(0, 0, 0, 0.23);
     --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
     --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -39,24 +50,26 @@ body {
 
 /* Header */
 .header {
-    background: white;
+    background-color: var(--primary-color);
+    color: var(--on-primary);
     padding: 20px;
     text-align: center;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    box-shadow: var(--shadow-1);
 }
 
 .header h3 {
     font-size: 20px;
     font-weight: 700;
-    color: var(--primary-color);
+    color: var(--on-primary);
     margin: 0;
-    letter-spacing: -0.5px;
+    letter-spacing: 0.5px;
 }
 
 .header p {
     font-size: 12px;
-    color: var(--text-secondary);
+    color: rgba(255, 255, 255, 0.9);
     margin-top: 4px;
+    font-weight: 400;
 }
 
 /* Main Content */
@@ -202,26 +215,26 @@ button::before {
 
 .status-running {
     color: var(--primary-color) !important;
-    background-color: rgba(98, 0, 238, 0.08) !important;
+    background-color: rgba(0, 119, 187, 0.1) !important;
 }
 
 .status-paused {
-    color: #FF9800 !important;
-    background-color: rgba(255, 152, 0, 0.08) !important;
+    color: var(--warning-color) !important;
+    background-color: rgba(238, 51, 119, 0.1) !important;
 }
 
 .status-success {
-    color: #4CAF50 !important;
-    background-color: rgba(76, 175, 80, 0.08) !important;
+    color: var(--success-color) !important;
+    background-color: rgba(0, 153, 136, 0.1) !important;
 }
 
 .status-error {
     color: var(--error-color) !important;
-    background-color: rgba(176, 0, 32, 0.08) !important;
+    background-color: rgba(204, 51, 17, 0.1) !important;
 }
 
 .status-warning {
-    color: #FF9800 !important;
+    color: var(--secondary-color) !important;
 }
 
 /* Buttons */

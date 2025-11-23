@@ -1,59 +1,122 @@
 const runButton = document.getElementById('runScriptButton');
-const statusDiv = document.getElementById('status'); // Get reference to the status display area
-
-// Add pause button
-const pauseButton = document.createElement('button');
-pauseButton.id = 'pauseButton';
-pauseButton.textContent = 'Pause';
-pauseButton.style.marginLeft = '10px';
-pauseButton.style.display = 'none'; // Initially hidden
-runButton.parentNode.insertBefore(pauseButton, runButton.nextSibling);
+const pauseButton = document.getElementById('pauseButton');
+const statusDiv = document.getElementById('status');
+const progressContainer = document.getElementById('progressContainer');
+const progressFill = document.querySelector('.progress-fill');
+const progressText = document.querySelector('.progress-text');
+const statsContainer = document.getElementById('statsContainer');
 
 let isPaused = false;
+let startTime = null;
+
+// Helper function to update status with CSS classes
+function updateStatus(message, statusClass) {
+    statusDiv.textContent = message;
+    statusDiv.className = statusClass;
+}
+
+// Helper function to update progress bar
+function updateProgress(current, total) {
+    if (total === 0) return;
+
+    const percentage = Math.round((current / total) * 100);
+    progressFill.style.width = `${percentage}%`;
+    progressText.textContent = `${current}/${total} offers (${percentage}%)`;
+}
+
+// Helper function to display statistics
+function displayStats(stats) {
+    document.getElementById('totalOffers').textContent = stats.totalOffersAdded;
+    document.getElementById('totalAccounts').textContent = stats.accountsProcessed;
+    document.getElementById('totalTime').textContent = stats.timeTaken;
+
+    const breakdownContainer = document.getElementById('statsBreakdown');
+    if (stats.breakdown && stats.breakdown.length > 0) {
+        breakdownContainer.innerHTML = '<div class="breakdown-title">By Account:</div>';
+        stats.breakdown.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'breakdown-item';
+            div.innerHTML = `
+                <span class="breakdown-account">${item.account}</span>
+                <span class="breakdown-count">${item.offers} offers</span>
+            `;
+            breakdownContainer.appendChild(div);
+        });
+    }
+
+    statsContainer.style.display = 'block';
+}
+
+// Helper function to show Chrome notification
+function showNotification(stats) {
+    chrome.notifications.create({
+        type: 'basic',
+        iconUrl: 'images/icon128.png',
+        title: 'Chase Offers Complete! 🎉',
+        message: `Added ${stats.totalOffersAdded} offers across ${stats.accountsProcessed} accounts in ${stats.timeTaken}`,
+        priority: 2
+    });
+}
 
 // --- Listener for Messages from Injected Script ---
-// This listens for messages sent FROM the script running on the Chase page
 chrome.runtime.onMessage.addListener((request, _sender, _sendResponse) => {
-    console.log('Popup received message:', request); // Log received messages
+    console.log('Popup received message:', request);
 
-    // Check the status included in the message
-    if (request.status === 'no_buttons_found') {
-        statusDiv.textContent = request.message;
-        statusDiv.style.color = '#FFA500'; // Orange color for no buttons found
-        // Hide pause button when script is done
-        pauseButton.style.display = 'none';
-    } else if (request.status === 'click_error') {
-        statusDiv.textContent = `Click Error: ${request.message}`;
-        statusDiv.style.color = '#FF0000'; // Red color for errors
-    } else if (request.status === 'script_started') {
-        statusDiv.textContent = 'Status: Adding offers...';
-        statusDiv.style.color = '#008000'; // Green color for active status
-        // Show pause button when script starts
+    if (request.status === 'script_started') {
+        startTime = Date.now();
+        updateStatus('Adding offers...', 'status-running');
         pauseButton.style.display = 'inline-block';
+        progressContainer.style.display = 'block';
+        statsContainer.style.display = 'none';
+    } else if (request.status === 'buttons_counted') {
+        updateStatus(request.message, 'status-running');
+        if (request.total) {
+            updateProgress(0, request.total);
+        }
+    } else if (request.status === 'offer_clicked') {
+        updateStatus(request.message, 'status-running');
+        if (request.current && request.total) {
+            updateProgress(request.current, request.total);
+        }
     } else if (request.status === 'script_paused') {
-        statusDiv.textContent = 'Status: Paused';
-        statusDiv.style.color = '#FFA500';
+        updateStatus('Paused', 'status-paused');
         pauseButton.textContent = 'Resume';
     } else if (request.status === 'script_resumed') {
-        statusDiv.textContent = 'Status: Adding offers...';
-        statusDiv.style.color = '#008000';
+        updateStatus('Adding offers...', 'status-running');
         pauseButton.textContent = 'Pause';
-    } else if (request.status === 'tab_switched') {
-        statusDiv.textContent = `Status: ${request.message}`;
-        statusDiv.style.color = '#0000FF'; // Blue color for tab switching
     } else if (request.status === 'account_switched') {
-        statusDiv.textContent = `Status: ${request.message}`;
-        statusDiv.style.color = '#800080'; // Purple color for account switching
-    } else if (request.status === 'buttons_counted') {
-        statusDiv.textContent = `Status: ${request.message}`;
-        statusDiv.style.color = '#008000'; // Green color for counting
-    } else if (request.status === 'offer_clicked') {
-        statusDiv.textContent = `Status: ${request.message}`;
-        statusDiv.style.color = '#008000'; // Green color for progress
-    }
-    // Add more conditions here if the injected script sends other statuses
+        updateStatus(request.message, 'status-running');
+    } else if (request.status === 'tab_switched') {
+        updateStatus(request.message, 'status-running');
+    } else if (request.status === 'script_completed') {
+        const endTime = Date.now();
+        const duration = endTime - startTime;
+        const minutes = Math.floor(duration / 60000);
+        const seconds = Math.floor((duration % 60000) / 1000);
+        const timeTaken = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
 
-    // Return false as we aren't sending an asynchronous response from the listener
+        const stats = request.stats || {
+            totalOffersAdded: request.totalOffersAdded || 0,
+            accountsProcessed: request.accountsProcessed || 1,
+            timeTaken: timeTaken,
+            breakdown: request.breakdown || []
+        };
+
+        stats.timeTaken = timeTaken;
+
+        updateStatus('Completed! 🎉', 'status-success');
+        pauseButton.style.display = 'none';
+        progressContainer.style.display = 'none';
+        displayStats(stats);
+        showNotification(stats);
+    } else if (request.status === 'no_buttons_found') {
+        updateStatus(request.message, 'status-warning');
+        pauseButton.style.display = 'none';
+        progressContainer.style.display = 'none';
+    } else if (request.status === 'click_error') {
+        updateStatus(`Error: ${request.message}`, 'status-error');
+    }
+
     return false;
 });
 
@@ -73,10 +136,10 @@ pauseButton.addEventListener('click', () => {
 
 // --- Button Click Handler ---
 runButton.addEventListener('click', () => {
-    statusDiv.textContent = 'Status: Injecting...';
-    statusDiv.style.color = '#0000FF'; // Blue color for injection status
-    isPaused = false; // Reset pause state
+    updateStatus('Injecting script...', 'status-running');
+    isPaused = false;
     pauseButton.textContent = 'Pause';
+    statsContainer.style.display = 'none';
 
     // --- Injected Script Definition ---
     // This function gets sent to the Chase page to run
@@ -106,6 +169,19 @@ runButton.addEventListener('click', () => {
         let buttonsClickedInCurrentView = 0;
         let totalButtonsClickedOverall = 0;
         const processedOffersInCurrentAccount = new Set(); // Track processed offers to avoid duplicates
+
+        // Security: Redact PII from logs and messages
+        function redactPII(text) {
+            if (!text) return text;
+            // Redact last 4 digits of card numbers (e.g., " - 1234" or "...1234")
+            return text.replace(/(\s-\s|\.\.\.)\d{4}/g, '$1****').replace(/\(?\d{4}\)?$/g, '****');
+        }
+
+        // Statistics tracking
+
+        // Statistics tracking
+        const accountStats = []; // Track offers per account
+        let currentAccountName = 'Account 1';
 
         // Listen for pause/resume messages from popup
         chrome.runtime.onMessage.addListener((request, _sender, _sendResponse) => {
@@ -165,7 +241,7 @@ runButton.addEventListener('click', () => {
                     return merchantName;
                 }
                 // Fallback to full aria-label
-                console.log('Using aria-label as identifier:', ariaLabel);
+                console.log('Using aria-label as identifier:', redactPII(ariaLabel));
                 return ariaLabel;
             }
 
@@ -173,7 +249,7 @@ runButton.addEventListener('click', () => {
             const merchantSpan = offerTile.querySelector('.mds-body-small-heavier');
             if (merchantSpan) {
                 const merchantName = merchantSpan.textContent.trim();
-                console.log('Using merchant span text as identifier:', merchantName);
+                console.log('Using merchant span text as identifier:', redactPII(merchantName));
                 return merchantName;
             }
 
@@ -260,9 +336,22 @@ runButton.addEventListener('click', () => {
             currentAccountIndex++;
 
             if (currentAccountIndex >= options.length) {
+                // Save final account stats
+                if (buttonsClickedInCurrentView > 0) {
+                    accountStats.push({
+                        account: currentAccountName,
+                        offers: buttonsClickedInCurrentView
+                    });
+                }
+
                 chrome.runtime.sendMessage({
                     status: 'script_completed',
-                    message: 'All accounts processed'
+                    message: 'All accounts processed',
+                    stats: {
+                        totalOffersAdded: totalButtonsClickedOverall,
+                        accountsProcessed: accountStats.length,
+                        breakdown: accountStats
+                    }
                 });
                 return false;
             }
@@ -285,6 +374,19 @@ runButton.addEventListener('click', () => {
 
                     // Wait for account switch to complete before continuing (longer wait for account switches)
                     setTimeout(() => {
+                        // Save stats for previous account before switching
+                        if (buttonsClickedInCurrentView > 0) {
+                            accountStats.push({
+                                account: currentAccountName,
+                                offers: buttonsClickedInCurrentView
+                            });
+                        }
+
+                        // Update current account name with redacted label
+                        const rawLabel =
+                            option.getAttribute('label') || `Account ${currentAccountIndex + 1}`;
+                        currentAccountName = redactPII(rawLabel);
+
                         // Reset processed offers set for new account
                         processedOffersInCurrentAccount.clear();
                         console.log('Cleared processed offers for new account');
@@ -295,7 +397,7 @@ runButton.addEventListener('click', () => {
 
                         chrome.runtime.sendMessage({
                             status: 'account_switched',
-                            message: `Switched to account: ${option.getAttribute('label')}. Found ${totalButtonsInCurrentView} offers to add.`
+                            message: `Switched to account: ${currentAccountName}. Found ${totalButtonsInCurrentView} offers to add.`
                         });
 
                         if (!isPaused) {
@@ -303,7 +405,7 @@ runButton.addEventListener('click', () => {
                         } else {
                             isWaitingForResume = true;
                         }
-                    }, 2500); // Increased from 2000ms to 2500ms for account switches
+                    }, 2500);
                 }
             }, 500);
 
@@ -436,19 +538,28 @@ runButton.addEventListener('click', () => {
                     return;
                 }
 
-                // Reset retry count and try switching to next account
-                retryCount = 0;
-                console.log('No more buttons found after', maxRetries, 'retries');
-
-                // Try switching to next account
+                // After max retries, try switching tabs then accounts
                 if (switchToNextAccount()) {
                     console.log('Switched to next account, continuing...');
                     return;
                 }
 
+                // No more accounts - save final stats and complete
+                if (buttonsClickedInCurrentView > 0) {
+                    accountStats.push({
+                        account: currentAccountName,
+                        offers: buttonsClickedInCurrentView
+                    });
+                }
+
                 chrome.runtime.sendMessage({
-                    status: 'no_buttons_found',
-                    message: 'All accounts processed'
+                    status: 'script_completed',
+                    message: 'All offers processed',
+                    stats: {
+                        totalOffersAdded: totalButtonsClickedOverall,
+                        accountsProcessed: Math.max(accountStats.length, 1),
+                        breakdown: accountStats
+                    }
                 });
                 return;
             }
@@ -504,7 +615,11 @@ runButton.addEventListener('click', () => {
                 // Report progress
                 chrome.runtime.sendMessage({
                     status: 'offer_clicked',
-                    message: `Added offer ${buttonsClickedInCurrentView} of ${totalButtonsInCurrentView} (${totalButtonsClickedOverall} total)`
+                    message: `Added offer ${buttonsClickedInCurrentView} of ${totalButtonsInCurrentView} (${totalButtonsClickedOverall} total)`,
+                    current: totalButtonsClickedOverall,
+                    total:
+                        totalButtonsInCurrentView +
+                        accountStats.reduce((sum, acc) => sum + acc.offers, 0)
                 });
 
                 setTimeout(async () => {
@@ -537,7 +652,8 @@ runButton.addEventListener('click', () => {
 
             chrome.runtime.sendMessage({
                 status: 'buttons_counted',
-                message: `Found ${totalButtonsInCurrentView} unique offers to add`
+                message: `Found ${totalButtonsInCurrentView} unique offers to add`,
+                total: totalButtonsInCurrentView
             });
 
             console.log(`Found ${totalButtonsInCurrentView} unique offers across all sections`);
@@ -567,19 +683,16 @@ runButton.addEventListener('click', () => {
                 })
                 .catch(err => {
                     console.error(`Popup script error: Failed to inject script: ${err}`);
-                    statusDiv.textContent = `Injection Error: ${err.message}`;
-                    statusDiv.style.color = '#FF0000'; // Red color for errors
+                    updateStatus(`Injection Error: ${err.message}`, 'status-error');
                     pauseButton.style.display = 'none';
                 });
         } else {
             console.error('Popup script error: No active tab found.');
-            statusDiv.textContent = 'Error: No active tab found.';
-            statusDiv.style.color = '#FF0000'; // Red color for errors
+            updateStatus('Error: No active tab found.', 'status-error');
             pauseButton.style.display = 'none';
         }
     }); // --- End of Script Injection Logic ---
 }); // --- End of Button Click Handler ---
 
 // Set initial status when popup opens
-statusDiv.textContent = 'Status: Ready';
-statusDiv.style.color = '#000000'; // Black color for ready status
+updateStatus('Ready', 'status-idle');

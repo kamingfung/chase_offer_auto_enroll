@@ -110,6 +110,8 @@ chrome.runtime.onMessage.addListener((request, _sender, _sendResponse) => {
         updateStatus('Adding offers...', 'status-running');
         pauseButton.textContent = 'Pause';
         showDog('working');
+    } else if (request.status === 'switching_account') {
+        updateStatus(request.message, 'status-running');
     } else if (request.status === 'account_switched') {
         updateStatus(request.message, 'status-running');
     } else if (request.status === 'tab_switched') {
@@ -384,6 +386,12 @@ runButton.addEventListener('click', () => {
                 });
                 return false;
             }
+
+            // Notify user that we're switching to the next account
+            chrome.runtime.sendMessage({
+                status: 'switching_account',
+                message: `Finished adding offers for ${currentAccountName}. Looking for next account...`
+            });
 
             // Click the select to open dropdown
             select.click();

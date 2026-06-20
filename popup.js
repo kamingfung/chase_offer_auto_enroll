@@ -185,7 +185,7 @@ runButton.addEventListener('click', () => {
         // Chase now uses SVG elements instead of mds-icon elements
         const addButtonSelector = '[data-cy="commerce-tile-button"]';
         const checkmarkSelector = 'svg[data-cy="commerce-tile-icon"]'; // Checkmark icon for added offers
-        const accountSelector = 'mds-select[id="select-credit-card-account"]';
+        const accountSelector = '#select-credit-card-account';
         // Note: Both "Featured" and "All offers" sections are visible on the same page
         // The script processes all sections by finding all buttons across both sections
         const minDelay = 300;
@@ -193,7 +193,14 @@ runButton.addEventListener('click', () => {
         const getRandomDelay = () => Math.random() * (maxDelay - minDelay) + minDelay;
 
         // --- Core Functions ---
-        let currentAccountIndex = 0;
+        let currentAccountIndex = (() => {
+            // Find the currently selected account index from the listbox
+            const options = document.querySelectorAll('ul[role="listbox"]#menu li[role="option"]');
+            for (let i = 0; i < options.length; i++) {
+                if (options[i].getAttribute('aria-selected') === 'true') return i;
+            }
+            return 0;
+        })();
         let isPaused = false;
         let isWaitingForResume = false;
         let totalButtonsInCurrentView = 0;
@@ -212,7 +219,15 @@ runButton.addEventListener('click', () => {
 
         // Statistics tracking
         const accountStats = []; // Track offers per account
-        let currentAccountName = 'Account 1';
+        let currentAccountName = (() => {
+            // Detect current account from the new combobox display text
+            const combobox = document.querySelector('#select-credit-card-account');
+            if (combobox) {
+                const displayText = combobox.querySelector('[class*="xko37o4"]');
+                if (displayText) return displayText.textContent.trim();
+            }
+            return 'Account 1';
+        })();
 
         // Listen for pause/resume messages from popup
         chrome.runtime.onMessage.addListener((request, _sender, _sendResponse) => {
@@ -360,10 +375,14 @@ runButton.addEventListener('click', () => {
                 return false;
             }
 
-            const select = document.querySelector(accountSelector);
-            if (!select) return false;
+            const combobox = document.querySelector(accountSelector);
+            if (!combobox) return false;
 
-            const options = select.querySelectorAll('mds-select-option');
+            // Get account options from the listbox
+            const optionsList = document.querySelector('ul[role="listbox"]#menu');
+            if (!optionsList) return false;
+            const options = optionsList.querySelectorAll('li[role="option"]');
+
             currentAccountIndex++;
 
             if (currentAccountIndex >= options.length) {
@@ -393,8 +412,8 @@ runButton.addEventListener('click', () => {
                 message: `Finished adding offers for ${currentAccountName}. Looking for next account...`
             });
 
-            // Click the select to open dropdown
-            select.click();
+            // Click the combobox to open the dropdown
+            combobox.click();
 
             // Wait for dropdown to open and select next account
             setTimeout(async () => {
@@ -402,7 +421,13 @@ runButton.addEventListener('click', () => {
                     await waitForResume();
                 }
 
-                const option = options[currentAccountIndex];
+                // Re-query options after dropdown opens (DOM may update)
+                const freshOptionsList = document.querySelector('ul[role="listbox"]#menu');
+                const freshOptions = freshOptionsList
+                    ? freshOptionsList.querySelectorAll('li[role="option"]')
+                    : [];
+                const option = freshOptions[currentAccountIndex];
+
                 if (option) {
                     option.click();
 
@@ -419,9 +444,11 @@ runButton.addEventListener('click', () => {
                             });
                         }
 
-                        // Update current account name with redacted label
+                        // Update current account name from the option text content
+                        const nameEl = option.querySelector('[class*="iappo6m"]');
                         const rawLabel =
-                            option.getAttribute('label') || `Account ${currentAccountIndex + 1}`;
+                            (nameEl && nameEl.textContent.trim()) ||
+                            `Account ${currentAccountIndex + 1}`;
                         currentAccountName = redactPII(rawLabel);
 
                         // Reset processed offers set for new account

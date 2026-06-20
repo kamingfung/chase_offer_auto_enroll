@@ -1,6 +1,5 @@
 node_modules/
-
-
+coverage/
 
 CLAUDE.md
 example
@@ -17,3 +16,6 @@ uv.lock
 # dev
 .claude
 .husky
+
+# packaged extension
+chase-offer-adder-v*.zip

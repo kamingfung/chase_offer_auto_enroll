@@ -78,35 +78,7 @@ body {
     padding: 20px;
 }
 
-/* Buttons */
-.button-group {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 16px;
-}
 
-button {
-    flex: 1;
-    padding: 12px 20px;
-    font-size: 14px;
-    font-weight: 600;
-    font-family: 'Inter', sans-serif;
-    border: none;
-    border-radius: var(--border-radius);
-    cursor: pointer;
-    transition: var(--transition);
-    box-shadow: var(--shadow-sm);
-    position: relative;
-    overflow: hidden;
-}
-
-button::before {
-    content: '';
-    position: absolute;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-}
 
 /* Material Card */
 .card {

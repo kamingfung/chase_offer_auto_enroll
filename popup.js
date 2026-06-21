@@ -186,11 +186,6 @@ runButton.addEventListener('click', () => {
         const addButtonSelector = '[data-cy="commerce-tile-button"]';
         const checkmarkSelector = 'svg[data-cy="commerce-tile-icon"]'; // Checkmark icon for added offers
         const accountSelector = '#select-credit-card-account';
-        // Note: Both "Featured" and "All offers" sections are visible on the same page
-        // The script processes all sections by finding all buttons across both sections
-        const minDelay = 300;
-        const maxDelay = 1300;
-        const getRandomDelay = () => Math.random() * (maxDelay - minDelay) + minDelay;
 
         // --- Core Functions ---
         let currentAccountIndex = (() => {
@@ -207,15 +202,6 @@ runButton.addEventListener('click', () => {
         let buttonsClickedInCurrentView = 0;
         let totalButtonsClickedOverall = 0;
         const processedOffersInCurrentAccount = new Set(); // Track processed offers to avoid duplicates
-
-        // Security: Redact PII from logs and messages
-        function redactPII(text) {
-            if (!text) return text;
-            // No longer redacting last 4 digits as requested
-            return text;
-        }
-
-        // Statistics tracking
 
         // Statistics tracking
         const accountStats = []; // Track offers per account
@@ -287,7 +273,7 @@ runButton.addEventListener('click', () => {
                     return merchantName;
                 }
                 // Fallback to full aria-label
-                console.log('Using aria-label as identifier:', redactPII(ariaLabel));
+                console.log('Using aria-label as identifier:', ariaLabel);
                 return ariaLabel;
             }
 
@@ -295,7 +281,7 @@ runButton.addEventListener('click', () => {
             const merchantSpan = offerTile.querySelector('.mds-body-small-heavier');
             if (merchantSpan) {
                 const merchantName = merchantSpan.textContent.trim();
-                console.log('Using merchant span text as identifier:', redactPII(merchantName));
+                console.log('Using merchant span text as identifier:', merchantName);
                 return merchantName;
             }
 
@@ -369,6 +355,25 @@ runButton.addEventListener('click', () => {
             return count;
         }
 
+        function completeAutomation() {
+            if (buttonsClickedInCurrentView > 0) {
+                accountStats.push({
+                    account: currentAccountName,
+                    offers: buttonsClickedInCurrentView
+                });
+            }
+
+            chrome.runtime.sendMessage({
+                status: 'script_completed',
+                message: 'All offers processed',
+                stats: {
+                    totalOffersAdded: totalButtonsClickedOverall,
+                    accountsProcessed: Math.max(accountStats.length, 1),
+                    breakdown: accountStats
+                }
+            });
+        }
+
         function switchToNextAccount() {
             if (isPaused) {
                 isWaitingForResume = true;
@@ -378,35 +383,7 @@ runButton.addEventListener('click', () => {
             const combobox = document.querySelector(accountSelector);
             if (!combobox) return false;
 
-            // Get account options from the listbox
-            const optionsList = document.querySelector('ul[role="listbox"]#menu');
-            if (!optionsList) return false;
-            const options = optionsList.querySelectorAll('li[role="option"]');
-
-            currentAccountIndex++;
-
-            if (currentAccountIndex >= options.length) {
-                // Save final account stats
-                if (buttonsClickedInCurrentView > 0) {
-                    accountStats.push({
-                        account: currentAccountName,
-                        offers: buttonsClickedInCurrentView
-                    });
-                }
-
-                chrome.runtime.sendMessage({
-                    status: 'script_completed',
-                    message: 'All accounts processed',
-                    stats: {
-                        totalOffersAdded: totalButtonsClickedOverall,
-                        accountsProcessed: accountStats.length,
-                        breakdown: accountStats
-                    }
-                });
-                return false;
-            }
-
-            // Notify user that we're switching to the next account
+            // Notify user that we're switching/checking the next account
             chrome.runtime.sendMessage({
                 status: 'switching_account',
                 message: `Finished adding offers for ${currentAccountName}. Looking for next account...`
@@ -426,71 +403,66 @@ runButton.addEventListener('click', () => {
                 const freshOptions = freshOptionsList
                     ? freshOptionsList.querySelectorAll('li[role="option"]')
                     : [];
-                const option = freshOptions[currentAccountIndex];
 
-                if (option) {
-                    option.click();
+                const nextIndex = currentAccountIndex + 1;
 
-                    // Scroll to top of page to ensure we start from the beginning
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                if (nextIndex < freshOptions.length) {
+                    currentAccountIndex = nextIndex;
+                    const option = freshOptions[currentAccountIndex];
 
-                    // Wait for account switch to complete before continuing (longer wait for account switches)
-                    setTimeout(() => {
-                        // Save stats for previous account before switching
-                        if (buttonsClickedInCurrentView > 0) {
-                            accountStats.push({
-                                account: currentAccountName,
-                                offers: buttonsClickedInCurrentView
+                    if (option) {
+                        option.click();
+
+                        // Scroll to top of page to ensure we start from the beginning
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+
+                        // Wait for account switch to complete before continuing (longer wait for account switches)
+                        setTimeout(() => {
+                            // Save stats for previous account before switching
+                            if (buttonsClickedInCurrentView > 0) {
+                                accountStats.push({
+                                    account: currentAccountName,
+                                    offers: buttonsClickedInCurrentView
+                                });
+                            }
+
+                            // Update current account name from the option text content
+                            const nameEl = option.querySelector('[class*="iappo6m"]');
+                            currentAccountName =
+                                (nameEl && nameEl.textContent.trim()) ||
+                                `Account ${currentAccountIndex + 1}`;
+
+                            // Reset processed offers set for new account
+                            processedOffersInCurrentAccount.clear();
+                            console.log('Cleared processed offers for new account');
+
+                            // Count buttons in new account
+                            totalButtonsInCurrentView = countClickableButtons();
+                            buttonsClickedInCurrentView = 0;
+
+                            chrome.runtime.sendMessage({
+                                status: 'account_switched',
+                                message: `Switched to account: ${currentAccountName}. Found ${totalButtonsInCurrentView} offers to add.`
                             });
-                        }
 
-                        // Update current account name from the option text content
-                        const nameEl = option.querySelector('[class*="iappo6m"]');
-                        const rawLabel =
-                            (nameEl && nameEl.textContent.trim()) ||
-                            `Account ${currentAccountIndex + 1}`;
-                        currentAccountName = redactPII(rawLabel);
-
-                        // Reset processed offers set for new account
-                        processedOffersInCurrentAccount.clear();
-                        console.log('Cleared processed offers for new account');
-
-                        // Count buttons in new account
-                        totalButtonsInCurrentView = countClickableButtons();
-                        buttonsClickedInCurrentView = 0;
-
-                        chrome.runtime.sendMessage({
-                            status: 'account_switched',
-                            message: `Switched to account: ${currentAccountName}. Found ${totalButtonsInCurrentView} offers to add.`
-                        });
-
-                        if (!isPaused) {
-                            addNextItem();
-                        } else {
-                            isWaitingForResume = true;
-                        }
-                    }, 2500);
+                            if (!isPaused) {
+                                addNextItem();
+                            } else {
+                                isWaitingForResume = true;
+                            }
+                        }, 2500);
+                    } else {
+                        completeAutomation();
+                    }
+                } else {
+                    // No more accounts. Close the dropdown first.
+                    combobox.click();
+                    completeAutomation();
                 }
             }, 500);
 
             return true;
         }
-
-        const goBack = async () => {
-            if (isPaused) {
-                await waitForResume();
-            }
-
-            console.log('Executing: goBack() - Navigating history back.');
-            window.history.back();
-            setTimeout(() => {
-                if (!isPaused) {
-                    addNextItem();
-                } else {
-                    isWaitingForResume = true;
-                }
-            }, getRandomDelay());
-        };
 
         let retryCount = 0;
         const maxRetries = 5; // Increased from 3 to 5 for better reliability
@@ -507,18 +479,7 @@ runButton.addEventListener('click', () => {
             const addButtons = Array.from(document.querySelectorAll(addButtonSelector));
             console.log('Found', addButtons.length, 'add buttons total across all sections');
 
-            // Debug: Check where these buttons are located
-            const carouselButtons = addButtons.filter(btn =>
-                btn.closest('[data-testid*="carousel"]')
-            );
-            const gridButtons = addButtons.filter(btn =>
-                btn.closest('[data-testid="grid-items-container"]')
-            );
-            console.log(
-                `Buttons by section: ${carouselButtons.length} in carousel, ${gridButtons.length} in grid`
-            );
-
-            const buttonToClick = addButtons.find(button => {
+            const buttonsToClick = addButtons.filter(button => {
                 const rect = button.getBoundingClientRect();
                 // For carousel items, they exist in DOM even if scrolled out of view
                 // Check if element exists (has dimensions) OR is in a carousel
@@ -555,9 +516,6 @@ runButton.addEventListener('click', () => {
 
                     // Skip offers that already have a checkmark or success alert
                     if (hasCheckmark || hasSuccessAlert) {
-                        console.log(
-                            'Skipping offer already added (has checkmark or success alert)'
-                        );
                         return false;
                     }
                 }
@@ -565,14 +523,13 @@ runButton.addEventListener('click', () => {
                 // Check if we've already processed this offer in this account
                 const offerId = getOfferIdentifier(button);
                 if (offerId && processedOffersInCurrentAccount.has(offerId)) {
-                    console.log('Skipping duplicate offer:', offerId);
                     return false;
                 }
 
                 return true;
             });
 
-            if (!buttonToClick) {
+            if (buttonsToClick.length === 0) {
                 console.log('No buttons found, retry count:', retryCount);
 
                 // Check if page is still loading content
@@ -604,102 +561,83 @@ runButton.addEventListener('click', () => {
 
                 // After max retries, try switching tabs then accounts
                 if (switchToNextAccount()) {
-                    console.log('Switched to next account, continuing...');
+                    console.log('Switching to next account...');
                     return;
                 }
 
-                // No more accounts - save final stats and complete
-                if (buttonsClickedInCurrentView > 0) {
-                    accountStats.push({
-                        account: currentAccountName,
-                        offers: buttonsClickedInCurrentView
-                    });
-                }
-
-                chrome.runtime.sendMessage({
-                    status: 'script_completed',
-                    message: 'All offers processed',
-                    stats: {
-                        totalOffersAdded: totalButtonsClickedOverall,
-                        accountsProcessed: Math.max(accountStats.length, 1),
-                        breakdown: accountStats
-                    }
-                });
+                // Fallback if combobox element was not found
+                completeAutomation();
                 return;
             }
 
-            // Reset retry count when we find a button
+            // Reset retry count when we find buttons
             retryCount = 0;
 
-            try {
-                // Scroll the button into view if it's not in viewport
-                const rect = buttonToClick.getBoundingClientRect();
-                const isInViewport =
-                    rect.top >= 0 &&
-                    rect.left >= 0 &&
-                    rect.bottom <= window.innerHeight &&
-                    rect.right <= window.innerWidth;
+            console.log(
+                `Found ${buttonsToClick.length} clickable buttons. Executing staggered parallel addition.`
+            );
 
-                if (!isInViewport) {
-                    console.log('Scrolling button into view');
-                    buttonToClick.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    // Wait a moment after scrolling for any lazy-loaded content
-                    await new Promise(resolve => setTimeout(resolve, 500));
-                }
+            const STAGGER_DELAY = 150; // Delay between firing each click
+            const SETTLE_DELAY = 2000; // Delay to wait after the last click has been fired
 
-                // Determine which section this button is in
-                const inCarousel = buttonToClick.closest('[data-testid*="carousel"]');
-                const inGrid = buttonToClick.closest('[data-testid="grid-items-container"]');
-                const section = inCarousel
-                    ? 'carousel (featured)'
-                    : inGrid
-                        ? 'grid (all offers)'
-                        : 'unknown';
-
-                // Mark this offer as processed to avoid duplicates
-                const offerId = getOfferIdentifier(buttonToClick);
-                if (offerId) {
-                    processedOffersInCurrentAccount.add(offerId);
-                    console.log('Marked offer as processed:', offerId);
-                }
-
-                const parentButton = buttonToClick.closest('[role="button"]');
-                if (parentButton) {
-                    console.log('Clicking button in', section, 'section');
-                    parentButton.click();
-                } else {
-                    console.log('Clicking icon directly in', section, 'section');
-                    buttonToClick.click();
-                }
-
-                // Increment counters after click
-                buttonsClickedInCurrentView++;
-                totalButtonsClickedOverall++;
-
-                // Report progress
-                chrome.runtime.sendMessage({
-                    status: 'offer_clicked',
-                    message: `Added offer ${buttonsClickedInCurrentView} of ${totalButtonsInCurrentView} (${totalButtonsClickedOverall} total)`,
-                    current: totalButtonsClickedOverall,
-                    total:
-                        totalButtonsInCurrentView +
-                        accountStats.reduce((sum, acc) => sum + acc.offers, 0)
-                });
-
+            buttonsToClick.forEach((button, index) => {
                 setTimeout(async () => {
-                    if (!isPaused) {
-                        await goBack();
-                    } else {
-                        isWaitingForResume = true;
+                    if (isPaused) return;
+
+                    try {
+                        // Scroll the button into view if it's not in viewport
+                        const rect = button.getBoundingClientRect();
+                        const isInViewport =
+                            rect.top >= 0 &&
+                            rect.left >= 0 &&
+                            rect.bottom <= window.innerHeight &&
+                            rect.right <= window.innerWidth;
+
+                        if (!isInViewport) {
+                            button.scrollIntoView({ behavior: 'auto', block: 'center' });
+                        }
+
+                        // Mark as processed
+                        const offerId = getOfferIdentifier(button);
+                        if (offerId) {
+                            processedOffersInCurrentAccount.add(offerId);
+                        }
+
+                        // Click the button
+                        const parentButton = button.closest('[role="button"]');
+                        if (parentButton) {
+                            parentButton.click();
+                        } else {
+                            button.click();
+                        }
+
+                        buttonsClickedInCurrentView++;
+                        totalButtonsClickedOverall++;
+
+                        // Report progress
+                        chrome.runtime.sendMessage({
+                            status: 'offer_clicked',
+                            message: `Added offer ${buttonsClickedInCurrentView} of ${totalButtonsInCurrentView} (${totalButtonsClickedOverall} total)`,
+                            current: totalButtonsClickedOverall,
+                            total:
+                                totalButtonsInCurrentView +
+                                accountStats.reduce((sum, acc) => sum + acc.offers, 0)
+                        });
+                    } catch (err) {
+                        console.error('Error clicking button in parallel batch:', err);
                     }
-                }, getRandomDelay());
-            } catch (error) {
-                console.error('Error during click:', error);
-                chrome.runtime.sendMessage({
-                    status: 'click_error',
-                    message: error.message
-                });
-            }
+                }, index * STAGGER_DELAY);
+            });
+
+            // Wait for all clicks to finish firing, then schedule the settlement check
+            const totalBatchTime = buttonsToClick.length * STAGGER_DELAY;
+            setTimeout(() => {
+                if (!isPaused) {
+                    addNextItem();
+                } else {
+                    isWaitingForResume = true;
+                }
+            }, totalBatchTime + SETTLE_DELAY);
         };
 
         // --- Start ---

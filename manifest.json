@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "Simple Chase Offer Runner",
-    "version": "1.0",
+    "version": "1.0.1",
     "description": "Click the button in the popup to run the Chase offer script once on the current page.",
     "permissions": ["activeTab", "scripting", "notifications"],
     "action": {

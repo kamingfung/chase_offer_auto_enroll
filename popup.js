@@ -284,10 +284,49 @@ runButton.addEventListener('click', () => {
                 console.log('Using merchant span text as identifier:', merchantName);
                 return merchantName;
             }
-
-            console.log('Could not determine offer identifier for tile');
-            return null;
         }
+
+        function getAccountIdFromOption(option) {
+            if (!option) return null;
+
+            // 1. Try specific attributes first
+            const attrs = ['value', 'data-value', 'data-account-id', 'id'];
+            for (const attr of attrs) {
+                const val = option.getAttribute(attr);
+                if (val) {
+                    const match = val.match(/\d{8,15}/);
+                    if (match) return match[0];
+                }
+            }
+
+            // 2. Try matching in outerHTML tag definition
+            const html = option.outerHTML;
+            const startTagMatch = html.match(/^<[^>]+>/);
+            if (startTagMatch) {
+                const startTag = startTagMatch[0];
+                const match = startTag.match(/\d{8,15}/);
+                if (match) return match[0];
+            }
+
+            // 3. Fallback to any 8-15 digit number in the entire HTML
+            const generalMatch = html.match(/\d{8,15}/);
+            if (generalMatch) return generalMatch[0];
+        }
+
+        const safeClick = element => {
+            if (!element) return;
+            if (typeof element.click === 'function') {
+                element.click();
+            } else {
+                console.log('Element does not support .click(), dispatching MouseEvent');
+                const event = new MouseEvent('click', {
+                    bubbles: true,
+                    cancelable: true,
+                    view: window
+                });
+                element.dispatchEvent(event);
+            }
+        };
 
         function countClickableButtons() {
             const addButtons = Array.from(document.querySelectorAll(addButtonSelector));
@@ -390,7 +429,7 @@ runButton.addEventListener('click', () => {
             });
 
             // Click the combobox to open the dropdown
-            combobox.click();
+            safeClick(combobox);
 
             // Wait for dropdown to open and select next account
             setTimeout(async () => {
@@ -411,7 +450,33 @@ runButton.addEventListener('click', () => {
                     const option = freshOptions[currentAccountIndex];
 
                     if (option) {
-                        option.click();
+                        safeClick(option);
+
+                        // Set up a listener to catch and correct the overview redirect
+                        let checkCount = 0;
+                        const checkInterval = setInterval(() => {
+                            checkCount++;
+                            const hash = (window.location && window.location.hash) || '';
+                            if (hash.includes('/dashboard/overview')) {
+                                clearInterval(checkInterval);
+                                console.log(
+                                    'Detected redirect to overview, navigating back to offers hub...'
+                                );
+                                const accountId = getAccountIdFromOption(option);
+                                if (window.location) {
+                                    if (accountId) {
+                                        window.location.hash = `/dashboard/merchantOffers/offer-hub?accountId=${accountId}`;
+                                    } else {
+                                        window.location.hash =
+                                            '/dashboard/merchantOffers/offer-hub';
+                                    }
+                                }
+                            }
+                            if (checkCount >= 20) {
+                                // check for 2 seconds
+                                clearInterval(checkInterval);
+                            }
+                        }, 100);
 
                         // Scroll to top of page to ensure we start from the beginning
                         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -456,7 +521,7 @@ runButton.addEventListener('click', () => {
                     }
                 } else {
                     // No more accounts. Close the dropdown first.
-                    combobox.click();
+                    safeClick(combobox);
                     completeAutomation();
                 }
             }, 500);
@@ -473,7 +538,22 @@ runButton.addEventListener('click', () => {
                 await waitForResume();
             }
 
-            console.log('Executing: addNextItem() - Looking for buttons in all sections');
+            // Check if we are currently on the offer-activated or detail page
+            const hash = (window.location && window.location.hash) || '';
+            if (hash.includes('offer-activated') || hash.includes('/detail')) {
+                console.log('Currently on detail/activated page, navigating back to offers hub...');
+                window.history.back();
+                setTimeout(() => {
+                    if (!isPaused) {
+                        addNextItem();
+                    } else {
+                        isWaitingForResume = true;
+                    }
+                }, 1500); // Wait 1.5s for back navigation to complete and page to load/settle
+                return;
+            }
+
+            console.log('Executing: addNextItem() - Looking for next button');
 
             // Find all add buttons across both carousel and grid sections
             const addButtons = Array.from(document.querySelectorAll(addButtonSelector));
@@ -481,18 +561,14 @@ runButton.addEventListener('click', () => {
 
             const buttonsToClick = addButtons.filter(button => {
                 const rect = button.getBoundingClientRect();
-                // For carousel items, they exist in DOM even if scrolled out of view
-                // Check if element exists (has dimensions) OR is in a carousel
                 const inCarousel = button.closest('[data-testid*="carousel"]');
                 const isVisible = rect.width > 0 && rect.height > 0;
 
-                // For carousel items, we accept them even if not visible (will scroll to them)
-                // For grid items, they must be visible
                 if (!isVisible && !inCarousel) {
                     return false;
                 }
 
-                const parentButton = button.closest('[role="button"]');
+                const parentButton = button.closest('button') || button;
                 const isClickable =
                     parentButton &&
                     !parentButton.disabled &&
@@ -503,7 +579,6 @@ runButton.addEventListener('click', () => {
                 }
 
                 // Check if this offer tile already has a checkmark or success alert (already added)
-                // Find the parent offer tile container
                 const offerTile = button.closest(
                     '[data-cy*="offer-tile"], [data-testid*="offer-tile"], [data-cy="commerce-tile"], [data-testid="commerce-tile"]'
                 );
@@ -514,7 +589,6 @@ runButton.addEventListener('click', () => {
                         '[data-testid="offer-tile-alert-container-success"], [data-cy="offer-tile-alert-container-success"]'
                     );
 
-                    // Skip offers that already have a checkmark or success alert
                     if (hasCheckmark || hasSuccessAlert) {
                         return false;
                     }
@@ -543,7 +617,6 @@ runButton.addEventListener('click', () => {
                     retryCount = 0; // Reset retry count if page is actively loading
                 }
 
-                // If we haven't reached max retries, wait and try again
                 if (retryCount < maxRetries) {
                     retryCount++;
                     console.log(
@@ -559,13 +632,11 @@ runButton.addEventListener('click', () => {
                     return;
                 }
 
-                // After max retries, try switching tabs then accounts
                 if (switchToNextAccount()) {
                     console.log('Switching to next account...');
                     return;
                 }
 
-                // Fallback if combobox element was not found
                 completeAutomation();
                 return;
             }
@@ -573,71 +644,69 @@ runButton.addEventListener('click', () => {
             // Reset retry count when we find buttons
             retryCount = 0;
 
-            console.log(
-                `Found ${buttonsToClick.length} clickable buttons. Executing staggered parallel addition.`
-            );
+            // Pick the first button to click (sequential)
+            const buttonToClick = buttonsToClick[0];
 
-            const STAGGER_DELAY = 150; // Delay between firing each click
-            const SETTLE_DELAY = 2000; // Delay to wait after the last click has been fired
+            try {
+                // Scroll the button into view if it's not in viewport
+                const rect = buttonToClick.getBoundingClientRect();
+                const isInViewport =
+                    rect.top >= 0 &&
+                    rect.left >= 0 &&
+                    rect.bottom <= window.innerHeight &&
+                    rect.right <= window.innerWidth;
 
-            buttonsToClick.forEach((button, index) => {
-                setTimeout(async () => {
-                    if (isPaused) return;
-
-                    try {
-                        // Scroll the button into view if it's not in viewport
-                        const rect = button.getBoundingClientRect();
-                        const isInViewport =
-                            rect.top >= 0 &&
-                            rect.left >= 0 &&
-                            rect.bottom <= window.innerHeight &&
-                            rect.right <= window.innerWidth;
-
-                        if (!isInViewport) {
-                            button.scrollIntoView({ behavior: 'auto', block: 'center' });
-                        }
-
-                        // Mark as processed
-                        const offerId = getOfferIdentifier(button);
-                        if (offerId) {
-                            processedOffersInCurrentAccount.add(offerId);
-                        }
-
-                        // Click the button
-                        const parentButton = button.closest('[role="button"]');
-                        if (parentButton) {
-                            parentButton.click();
-                        } else {
-                            button.click();
-                        }
-
-                        buttonsClickedInCurrentView++;
-                        totalButtonsClickedOverall++;
-
-                        // Report progress
-                        chrome.runtime.sendMessage({
-                            status: 'offer_clicked',
-                            message: `Added offer ${buttonsClickedInCurrentView} of ${totalButtonsInCurrentView} (${totalButtonsClickedOverall} total)`,
-                            current: totalButtonsClickedOverall,
-                            total:
-                                totalButtonsInCurrentView +
-                                accountStats.reduce((sum, acc) => sum + acc.offers, 0)
-                        });
-                    } catch (err) {
-                        console.error('Error clicking button in parallel batch:', err);
-                    }
-                }, index * STAGGER_DELAY);
-            });
-
-            // Wait for all clicks to finish firing, then schedule the settlement check
-            const totalBatchTime = buttonsToClick.length * STAGGER_DELAY;
-            setTimeout(() => {
-                if (!isPaused) {
-                    addNextItem();
-                } else {
-                    isWaitingForResume = true;
+                if (!isInViewport) {
+                    buttonToClick.scrollIntoView({ behavior: 'auto', block: 'center' });
                 }
-            }, totalBatchTime + SETTLE_DELAY);
+
+                // Mark as processed
+                const offerId = getOfferIdentifier(buttonToClick);
+                if (offerId) {
+                    processedOffersInCurrentAccount.add(offerId);
+                }
+
+                // Click the button wrapper or SVG directly
+                const parentButton = buttonToClick.closest('button') || buttonToClick;
+                safeClick(parentButton);
+
+                buttonsClickedInCurrentView++;
+                totalButtonsClickedOverall++;
+
+                // Report progress
+                chrome.runtime.sendMessage({
+                    status: 'offer_clicked',
+                    message: `Added offer ${buttonsClickedInCurrentView} of ${totalButtonsInCurrentView} (${totalButtonsClickedOverall} total)`,
+                    current: totalButtonsClickedOverall,
+                    total:
+                        totalButtonsInCurrentView +
+                        accountStats.reduce((sum, acc) => sum + acc.offers, 0)
+                });
+
+                // Wait 1.5 seconds to allow any page transitions to occur and settle
+                // If it transitioned to detail page, the next addNextItem() call will detect it and call history.back()
+                setTimeout(() => {
+                    if (!isPaused) {
+                        addNextItem();
+                    } else {
+                        isWaitingForResume = true;
+                    }
+                }, 1500);
+            } catch (err) {
+                console.error('Error clicking button:', err);
+                chrome.runtime.sendMessage({
+                    status: 'click_error',
+                    message: err.message
+                });
+                // Continue to next item even on error
+                setTimeout(() => {
+                    if (!isPaused) {
+                        addNextItem();
+                    } else {
+                        isWaitingForResume = true;
+                    }
+                }, 1500);
+            }
         };
 
         // --- Start ---

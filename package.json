@@ -1,6 +1,6 @@
 {
     "name": "chase-offer-adder",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "Chrome extension to automatically add Chase offers",
     "main": "popup.js",
     "type": "module",

@@ -38,7 +38,6 @@ function updateStatus(message, statusClass) {
 }
 
 // Helper function to update progress bar
-// Helper function to update progress bar
 function updateProgress(current, total) {
     if (total === 0) return;
 
@@ -113,8 +112,6 @@ chrome.runtime.onMessage.addListener((request, _sender, _sendResponse) => {
     } else if (request.status === 'switching_account') {
         updateStatus(request.message, 'status-running');
     } else if (request.status === 'account_switched') {
-        updateStatus(request.message, 'status-running');
-    } else if (request.status === 'tab_switched') {
         updateStatus(request.message, 'status-running');
     } else if (request.status === 'script_completed') {
         const endTime = Date.now();

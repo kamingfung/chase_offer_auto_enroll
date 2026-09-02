@@ -53,20 +53,59 @@ function displayStats(stats) {
     document.getElementById('totalTime').textContent = stats.timeTaken;
 
     const breakdownContainer = document.getElementById('statsBreakdown');
+    breakdownContainer.replaceChildren();
     if (stats.breakdown && stats.breakdown.length > 0) {
-        breakdownContainer.innerHTML = '<div class="breakdown-title">By Account:</div>';
+        const title = document.createElement('div');
+        title.className = 'breakdown-title';
+        title.textContent = 'By Account:';
+        breakdownContainer.appendChild(title);
+
+        // Account names come from the Chase page DOM, so they are untrusted.
+        // Build nodes with textContent instead of innerHTML to avoid HTML injection.
         stats.breakdown.forEach(item => {
             const div = document.createElement('div');
             div.className = 'breakdown-item';
-            div.innerHTML = `
-                <span class="breakdown-account">${item.account}</span>
-                <span class="breakdown-count">${item.offers} offers</span>
-            `;
+
+            const account = document.createElement('span');
+            account.className = 'breakdown-account';
+            account.textContent = String(item.account);
+
+            const count = document.createElement('span');
+            count.className = 'breakdown-count';
+            count.textContent = `${Number(item.offers) || 0} offers`;
+
+            div.append(account, count);
             breakdownContainer.appendChild(div);
         });
     }
 
     statsContainer.style.display = 'block';
+}
+
+// Format a duration in milliseconds as "Xm Ys" or "Ys". Unknown durations return "n/a".
+function formatDuration(durationMs) {
+    if (typeof durationMs !== 'number' || !Number.isFinite(durationMs) || durationMs < 0) {
+        return 'n/a';
+    }
+    const minutes = Math.floor(durationMs / 60000);
+    const seconds = Math.floor((durationMs % 60000) / 1000);
+    return minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+}
+
+// Only inject into Chase's web app. activeTab exposes tab.url after the user
+// clicks the extension, so we can check it before injecting. Any HTTPS host on
+// chase.com is accepted because Chase serves the dashboard from several
+// secure*.chase.com hostnames.
+function isAllowedChaseUrl(url) {
+    try {
+        const parsed = new URL(url);
+        const host = parsed.hostname;
+        return (
+            parsed.protocol === 'https:' && (host === 'chase.com' || host.endsWith('.chase.com'))
+        );
+    } catch {
+        return false;
+    }
 }
 
 // Helper function to show Chrome notification
@@ -113,21 +152,27 @@ chrome.runtime.onMessage.addListener((request, _sender, _sendResponse) => {
         updateStatus(request.message, 'status-running');
     } else if (request.status === 'account_switched') {
         updateStatus(request.message, 'status-running');
+    } else if (request.status === 'already_running') {
+        updateStatus('Automation is already running on this page.', 'status-warning');
+        pauseButton.style.display = 'inline-block';
+        progressContainer.style.display = 'block';
+        showDog('working');
     } else if (request.status === 'script_completed') {
-        const endTime = Date.now();
-        const duration = endTime - startTime;
-        const minutes = Math.floor(duration / 60000);
-        const seconds = Math.floor((duration % 60000) / 1000);
-        const timeTaken = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
-
         const stats = request.stats || {
             totalOffersAdded: request.totalOffersAdded || 0,
             accountsProcessed: request.accountsProcessed || 1,
-            timeTaken: timeTaken,
             breakdown: request.breakdown || []
         };
 
-        stats.timeTaken = timeTaken;
+        // Prefer the duration measured by the injected script: the popup may have
+        // been closed and reopened mid-run, which resets the popup's own startTime.
+        let duration = null;
+        if (typeof stats.durationMs === 'number') {
+            duration = stats.durationMs;
+        } else if (startTime !== null) {
+            duration = Date.now() - startTime;
+        }
+        stats.timeTaken = formatDuration(duration);
 
         updateStatus('Completed!', 'status-success');
         pauseButton.style.display = 'none';
@@ -172,6 +217,26 @@ runButton.addEventListener('click', () => {
     // --- Injected Script Definition ---
     // This function gets sent to the Chase page to run
     const scriptToExecute = () => {
+        // Defense in depth: the popup already checks the tab URL, but never run
+        // the automation (which clicks around and reads the DOM) on a non-Chase page.
+        if (!/(^|\.)chase\.com$/.test(window.location.hostname)) {
+            chrome.runtime.sendMessage({
+                status: 'click_error',
+                message: 'This page is not a Chase page.'
+            });
+            return;
+        }
+
+        // Each click of "ADD OFFERS" injects a fresh copy of this function. Without
+        // a guard, two copies would both register message listeners and both click
+        // offers, doubling counts and racing each other.
+        if (window.__chaseOfferAdderRunning) {
+            chrome.runtime.sendMessage({ status: 'already_running' });
+            return;
+        }
+        window.__chaseOfferAdderRunning = true;
+        const startedAt = Date.now();
+
         // Let the popup know the script has started executing on the page
         chrome.runtime.sendMessage({ status: 'script_started' });
 
@@ -286,28 +351,26 @@ runButton.addEventListener('click', () => {
         function getAccountIdFromOption(option) {
             if (!option) return null;
 
-            // 1. Try specific attributes first
+            // Only look at attributes on the option element itself. Scanning the
+            // option's full HTML (including its text) could pick up unrelated
+            // numbers, such as a card's masked digits, and put them in the URL.
+            const idPattern = /(?<!\d)\d{8,15}(?!\d)/;
             const attrs = ['value', 'data-value', 'data-account-id', 'id'];
             for (const attr of attrs) {
                 const val = option.getAttribute(attr);
                 if (val) {
-                    const match = val.match(/\d{8,15}/);
+                    const match = val.match(idPattern);
                     if (match) return match[0];
                 }
             }
 
-            // 2. Try matching in outerHTML tag definition
-            const html = option.outerHTML;
-            const startTagMatch = html.match(/^<[^>]+>/);
-            if (startTagMatch) {
-                const startTag = startTagMatch[0];
-                const match = startTag.match(/\d{8,15}/);
+            for (const { name, value } of Array.from(option.attributes)) {
+                if (attrs.includes(name)) continue;
+                const match = value.match(idPattern);
                 if (match) return match[0];
             }
 
-            // 3. Fallback to any 8-15 digit number in the entire HTML
-            const generalMatch = html.match(/\d{8,15}/);
-            if (generalMatch) return generalMatch[0];
+            return null;
         }
 
         const safeClick = element => {
@@ -342,9 +405,10 @@ runButton.addEventListener('click', () => {
                     return;
                 }
 
-                const parentButton = button.closest('[role="button"]');
+                // Use the same ancestor lookup as addNextItem so the count and the
+                // click loop agree on what is clickable.
+                const parentButton = button.closest('button, [role="button"]') || button;
                 const isClickable =
-                    parentButton &&
                     !parentButton.disabled &&
                     window.getComputedStyle(parentButton).display !== 'none';
 
@@ -399,13 +463,16 @@ runButton.addEventListener('click', () => {
                 });
             }
 
+            window.__chaseOfferAdderRunning = false;
+
             chrome.runtime.sendMessage({
                 status: 'script_completed',
                 message: 'All offers processed',
                 stats: {
                     totalOffersAdded: totalButtonsClickedOverall,
                     accountsProcessed: Math.max(accountStats.length, 1),
-                    breakdown: accountStats
+                    breakdown: accountStats,
+                    durationMs: Date.now() - startedAt
                 }
             });
         }
@@ -565,9 +632,8 @@ runButton.addEventListener('click', () => {
                     return false;
                 }
 
-                const parentButton = button.closest('button') || button;
+                const parentButton = button.closest('button, [role="button"]') || button;
                 const isClickable =
-                    parentButton &&
                     !parentButton.disabled &&
                     window.getComputedStyle(parentButton).display !== 'none';
 
@@ -664,7 +730,8 @@ runButton.addEventListener('click', () => {
                 }
 
                 // Click the button wrapper or SVG directly
-                const parentButton = buttonToClick.closest('button') || buttonToClick;
+                const parentButton =
+                    buttonToClick.closest('button, [role="button"]') || buttonToClick;
                 safeClick(parentButton);
 
                 buttonsClickedInCurrentView++;
@@ -734,9 +801,17 @@ runButton.addEventListener('click', () => {
     chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
         if (tabs.length > 0) {
             const targetTabId = tabs[0].id;
+
+            if (!isAllowedChaseUrl(tabs[0].url)) {
+                console.warn('Popup: Active tab is not a Chase page, refusing to inject.');
+                updateStatus('Open your Chase Offers page first.', 'status-warning');
+                pauseButton.style.display = 'none';
+                showDog('header');
+                return;
+            }
+
             console.log(`Popup: Attempting to inject script into tab: ${targetTabId}`);
-            statusDiv.textContent = 'Status: Running...';
-            statusDiv.style.color = '#0000FF'; // Blue color for running status
+            updateStatus('Running...', 'status-running');
 
             // Execute the script on the active tab
             chrome.scripting

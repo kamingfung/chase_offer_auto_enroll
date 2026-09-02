@@ -14,15 +14,23 @@ global.chrome = {
     },
     scripting: {
         executeScript: jest.fn()
+    },
+    notifications: {
+        create: jest.fn()
     }
 };
 
-// Mock DOM methods
+// Replace jsdom's location with a plain, writable object so tests can read and
+// write `hash` and swap `hostname` without triggering real navigation.
+// Tests change it through setPageLocation() from tests/helpers.js.
 Object.defineProperty(window, 'location', {
     value: {
-        href: 'https://example.com'
+        href: 'https://secure.chase.com/web/auth/dashboard#/dashboard/merchantOffers/offer-hub',
+        hostname: 'secure.chase.com',
+        hash: '#/dashboard/merchantOffers/offer-hub'
     },
-    writable: true
+    writable: true,
+    configurable: true
 });
 
 // Mock console methods for cleaner test output

@@ -2,235 +2,295 @@
  * @jest-environment jsdom
  */
 
-describe('Chase Offer Adder - Injected Script Tests', () => {
-    let mockButton, mockSelect, mockOption1, mockOption2;
+const {
+    loadPopup,
+    clickRunAndGetInjectedScript,
+    messagesWithStatus,
+    makeTile,
+    mockVisibleLayout,
+    setPageLocation
+} = require('./helpers');
 
+// Timings used by the injected script (see popup.js).
+const SETTLE_MS = 1000;
+const AFTER_CLICK_MS = 1500;
+const RETRY_MS = 2000;
+const MAX_RETRIES = 5;
+const DROPDOWN_MS = 500;
+const ACCOUNT_SWITCH_MS = 2500;
+
+/** Load popup.js, click ADD OFFERS, and return the function Chrome would inject. */
+function getInjectedScript() {
+    loadPopup();
+    const func = clickRunAndGetInjectedScript();
+    // Reset the page DOM: the popup markup is not part of the Chase page.
+    document.body.innerHTML = '';
+    chrome.runtime.sendMessage.mockClear();
+    return func;
+}
+
+/** Return the pause/resume listener the injected script registered on the page. */
+function getPageListener() {
+    return chrome.runtime.onMessage.addListener.mock.calls.at(-1)[0];
+}
+
+async function exhaustRetries() {
+    for (let i = 0; i < MAX_RETRIES + 1; i++) {
+        await jest.advanceTimersByTimeAsync(RETRY_MS);
+    }
+}
+
+describe('Chase Offer Adder - Injected Script', () => {
     beforeEach(() => {
-        // Reset DOM
-        document.body.innerHTML = '';
-
-        // Create mock elements
-        mockButton = document.createElement('mds-icon');
-        mockButton.setAttribute('type', 'ico_add_circle');
-        mockButton.setAttribute('data-cy', 'commerce-tile-button');
-
-        const parentButton = document.createElement('div');
-        parentButton.setAttribute('role', 'button');
-        parentButton.appendChild(mockButton);
-        document.body.appendChild(parentButton);
-
-        // Create mock account selector
-        mockSelect = document.createElement('mds-select');
-        mockSelect.setAttribute('id', 'select-credit-card-account');
-
-        mockOption1 = document.createElement('mds-select-option');
-        mockOption1.setAttribute('label', 'Account 1');
-        mockOption1.textContent = 'Account 1';
-
-        mockOption2 = document.createElement('mds-select-option');
-        mockOption2.setAttribute('label', 'Account 2');
-        mockOption2.textContent = 'Account 2';
-
-        mockSelect.appendChild(mockOption1);
-        mockSelect.appendChild(mockOption2);
-        document.body.appendChild(mockSelect);
-
-        // Reset Chrome API mocks
+        jest.useFakeTimers();
         jest.clearAllMocks();
+        setPageLocation();
+        mockVisibleLayout();
     });
 
-    describe('Button Detection Logic', () => {
-        test('should find add buttons with correct selector', () => {
-            const addButtonSelector =
-                'mds-icon[type="ico_add_circle"][data-cy="commerce-tile-button"]';
-            const buttons = Array.from(document.querySelectorAll(addButtonSelector));
-
-            expect(buttons.length).toBe(1);
-            expect(buttons[0]).toBe(mockButton);
-        });
-
-        test('should check button visibility correctly', () => {
-            // Mock getBoundingClientRect for visibility check
-            mockButton.getBoundingClientRect = jest.fn(() => ({
-                width: 100,
-                height: 50,
-                top: 100,
-                left: 100,
-                bottom: 150,
-                right: 200
-            }));
-
-            // Mock window dimensions
-            Object.defineProperty(window, 'innerHeight', { value: 800, writable: true });
-            Object.defineProperty(window, 'innerWidth', { value: 1200, writable: true });
-
-            const rect = mockButton.getBoundingClientRect();
-            const isVisible = rect.width > 0 && rect.height > 0;
-            const isInViewport =
-                rect.top >= 0 &&
-                rect.left >= 0 &&
-                rect.bottom <= window.innerHeight &&
-                rect.right <= window.innerWidth;
-
-            expect(isVisible).toBe(true);
-            expect(isInViewport).toBe(true);
-        });
-
-        test('should check if button is clickable', () => {
-            const parentButton = mockButton.closest('[role="button"]');
-            expect(parentButton).toBeTruthy();
-            expect(parentButton.disabled).toBeFalsy();
-        });
+    afterEach(() => {
+        jest.useRealTimers();
+        jest.restoreAllMocks();
     });
 
-    describe('Account Selection Logic', () => {
-        test('should find account selector', () => {
-            const accountSelector = 'mds-select[id="select-credit-card-account"]';
-            const select = document.querySelector(accountSelector);
+    describe('guards', () => {
+        test('refuses to run on a non-Chase host', () => {
+            const run = getInjectedScript();
+            setPageLocation('evil.example', '');
 
-            expect(select).toBe(mockSelect);
+            run();
+
+            expect(messagesWithStatus('script_started')).toHaveLength(0);
+            expect(messagesWithStatus('click_error')[0].message).toMatch(/not a Chase page/);
+            expect(window.__chaseOfferAdderRunning).toBeFalsy();
         });
 
-        test('should find account options', () => {
-            const options = mockSelect.querySelectorAll('mds-select-option');
+        test('accepts chase.com and its subdomains', () => {
+            const run = getInjectedScript();
+            setPageLocation('secure01b.chase.com');
 
-            expect(options.length).toBe(2);
-            expect(options[0].getAttribute('label')).toBe('Account 1');
-            expect(options[1].getAttribute('label')).toBe('Account 2');
+            run();
+
+            expect(messagesWithStatus('script_started')).toHaveLength(1);
+            expect(window.__chaseOfferAdderRunning).toBe(true);
         });
 
-        test('should simulate account switching logic', () => {
-            let currentAccountIndex = 0;
-            const options = mockSelect.querySelectorAll('mds-select-option');
+        test('a second injection while running reports already_running', () => {
+            const run = getInjectedScript();
 
-            // Simulate switching to next account
-            currentAccountIndex++;
+            run();
+            run();
 
-            expect(currentAccountIndex).toBe(1);
-            expect(currentAccountIndex < options.length).toBe(true);
-            expect(options[currentAccountIndex]).toBe(mockOption2);
+            expect(messagesWithStatus('script_started')).toHaveLength(1);
+            expect(messagesWithStatus('already_running')).toHaveLength(1);
+            // Only one pause/resume listener should have been registered on the page.
+            expect(chrome.runtime.onMessage.addListener).toHaveBeenCalledTimes(2); // popup + one page copy
         });
     });
 
-    describe('Retry Logic', () => {
-        test('should implement retry mechanism', () => {
-            let retryCount = 0;
-            const maxRetries = 3;
+    describe('adding offers', () => {
+        test('clicks each unadded offer once, skips added ones, and reports completion', async () => {
+            const run = getInjectedScript();
+            document.body.append(
+                makeTile('offer-1'),
+                makeTile('offer-2', { added: true }),
+                makeTile('offer-3')
+            );
+            const clicks = jest.fn();
+            document.querySelectorAll('button').forEach(b => b.addEventListener('click', clicks));
 
-            // Simulate no buttons found scenario
-            const buttons = [];
+            run();
+            await jest.advanceTimersByTimeAsync(SETTLE_MS);
 
-            if (buttons.length === 0 && retryCount < maxRetries) {
-                retryCount++;
-            }
+            expect(messagesWithStatus('buttons_counted')[0]).toMatchObject({ total: 2 });
 
-            expect(retryCount).toBe(1);
-            expect(retryCount < maxRetries).toBe(true);
+            await jest.advanceTimersByTimeAsync(AFTER_CLICK_MS);
+            await jest.advanceTimersByTimeAsync(AFTER_CLICK_MS);
+
+            const clicked = messagesWithStatus('offer_clicked');
+            expect(clicked).toHaveLength(2);
+            expect(clicked[1]).toMatchObject({ current: 2, total: 2 });
+            expect(clicks).toHaveBeenCalledTimes(2);
+
+            // No account selector on the page, so after retries the run completes.
+            await exhaustRetries();
+
+            const done = messagesWithStatus('script_completed');
+            expect(done).toHaveLength(1);
+            expect(done[0].stats).toMatchObject({
+                totalOffersAdded: 2,
+                accountsProcessed: 1,
+                breakdown: [{ account: 'Account 1', offers: 2 }]
+            });
+            expect(typeof done[0].stats.durationMs).toBe('number');
+            expect(done[0].stats.durationMs).toBeGreaterThan(0);
+            expect(window.__chaseOfferAdderRunning).toBe(false);
+            expect(clicks).toHaveBeenCalledTimes(2);
         });
 
-        test('should reset retry count when button is found', () => {
-            let retryCount = 2;
-            const buttons = [mockButton]; // Button found
+        test('navigates back when a click lands on the offer detail page', async () => {
+            const run = getInjectedScript();
+            document.body.append(makeTile('offer-1'));
+            document.querySelector('button').addEventListener('click', () => {
+                window.location.hash = '#/dashboard/merchantOffers/offer-activated';
+            });
+            const back = jest.spyOn(window.history, 'back').mockImplementation(() => {
+                window.location.hash = '#/dashboard/merchantOffers/offer-hub';
+            });
 
-            if (buttons.length > 0) {
-                retryCount = 0;
-            }
+            run();
+            await jest.advanceTimersByTimeAsync(SETTLE_MS + AFTER_CLICK_MS);
 
-            expect(retryCount).toBe(0);
+            expect(back).toHaveBeenCalledTimes(1);
+            expect(messagesWithStatus('offer_clicked')).toHaveLength(1);
         });
 
-        test('should switch account after max retries', () => {
-            let retryCount = 3;
-            const maxRetries = 3;
-            let shouldSwitchAccount = false;
+        test('resets the retry counter while the page shows a loading state', async () => {
+            const run = getInjectedScript();
+            const skeleton = document.createElement('div');
+            skeleton.setAttribute('data-testid', 'offers-skeleton');
+            document.body.append(skeleton);
 
-            if (retryCount >= maxRetries) {
-                retryCount = 0;
-                shouldSwitchAccount = true;
-            }
+            run();
+            await jest.advanceTimersByTimeAsync(SETTLE_MS);
+            await exhaustRetries();
 
-            expect(shouldSwitchAccount).toBe(true);
-            expect(retryCount).toBe(0);
-        });
-    });
+            // Still loading, so it must not have given up.
+            expect(messagesWithStatus('script_completed')).toHaveLength(0);
 
-    describe('Delay Generation', () => {
-        test('should generate delays within specified range', () => {
-            const minDelay = 300;
-            const maxDelay = 1300;
-            const getRandomDelay = () => Math.random() * (maxDelay - minDelay) + minDelay;
-
-            // Test multiple times to ensure consistency
-            for (let i = 0; i < 10; i++) {
-                const delay = getRandomDelay();
-                expect(delay).toBeGreaterThanOrEqual(minDelay);
-                expect(delay).toBeLessThanOrEqual(maxDelay);
-            }
-        });
-    });
-
-    describe('Pause/Resume Logic', () => {
-        test('should handle pause state correctly', () => {
-            let isPaused = false;
-            let isWaitingForResume = false;
-
-            // Simulate pause
-            isPaused = true;
-            if (isPaused) {
-                isWaitingForResume = true;
-            }
-
-            expect(isPaused).toBe(true);
-            expect(isWaitingForResume).toBe(true);
-        });
-
-        test('should handle resume state correctly', () => {
-            let isPaused = true;
-            let isWaitingForResume = true;
-
-            // Simulate resume
-            isPaused = false;
-            if (!isPaused && isWaitingForResume) {
-                isWaitingForResume = false;
-            }
-
-            expect(isPaused).toBe(false);
-            expect(isWaitingForResume).toBe(false);
+            skeleton.remove();
+            await exhaustRetries();
+            expect(messagesWithStatus('script_completed')).toHaveLength(1);
         });
     });
 
-    describe('Chrome Runtime Messages', () => {
-        test('should send script_started message', () => {
-            chrome.runtime.sendMessage({ status: 'script_started' });
+    describe('pause and resume', () => {
+        test('stops clicking while paused and continues on resume', async () => {
+            const run = getInjectedScript();
+            document.body.append(makeTile('offer-1'), makeTile('offer-2'));
 
-            expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({
-                status: 'script_started'
+            run();
+            await jest.advanceTimersByTimeAsync(SETTLE_MS);
+            expect(messagesWithStatus('offer_clicked')).toHaveLength(1);
+
+            const pageListener = getPageListener();
+            pageListener({ action: 'pause' });
+            expect(messagesWithStatus('script_paused')).toHaveLength(1);
+
+            await jest.advanceTimersByTimeAsync(AFTER_CLICK_MS * 3);
+            expect(messagesWithStatus('offer_clicked')).toHaveLength(1);
+
+            pageListener({ action: 'resume' });
+            expect(messagesWithStatus('script_resumed')).toHaveLength(1);
+            await jest.advanceTimersByTimeAsync(AFTER_CLICK_MS);
+            expect(messagesWithStatus('offer_clicked')).toHaveLength(2);
+        });
+    });
+
+    describe('account switching', () => {
+        function buildAccountSelector(options) {
+            const combobox = document.createElement('div');
+            combobox.id = 'select-credit-card-account';
+            const menu = document.createElement('ul');
+            menu.id = 'menu';
+            menu.setAttribute('role', 'listbox');
+            options.forEach((opt, i) => {
+                const li = document.createElement('li');
+                li.setAttribute('role', 'option');
+                li.setAttribute('aria-selected', i === 0 ? 'true' : 'false');
+                if (opt.id) li.id = opt.id;
+                const name = document.createElement('span');
+                name.className = 'iappo6m-name';
+                name.textContent = opt.label;
+                li.appendChild(name);
+                if (opt.onSelect) li.addEventListener('click', opt.onSelect);
+                menu.appendChild(li);
+            });
+            document.body.append(combobox, menu);
+        }
+
+        test('moves to the next account and aggregates per-account stats', async () => {
+            const run = getInjectedScript();
+            document.body.append(makeTile('a1-offer'));
+            buildAccountSelector([
+                { label: 'Freedom', id: 'menu-item-900000001' },
+                {
+                    label: 'Sapphire',
+                    id: 'menu-item-900000002',
+                    onSelect: () =>
+                        document.body.append(makeTile('a2-offer-1'), makeTile('a2-offer-2'))
+                }
+            ]);
+
+            run();
+            await jest.advanceTimersByTimeAsync(SETTLE_MS + AFTER_CLICK_MS);
+            await exhaustRetries();
+
+            expect(messagesWithStatus('switching_account')).toHaveLength(1);
+            await jest.advanceTimersByTimeAsync(DROPDOWN_MS + ACCOUNT_SWITCH_MS);
+            expect(messagesWithStatus('account_switched')[0].message).toMatch(/Sapphire.*2 offers/);
+
+            await jest.advanceTimersByTimeAsync(AFTER_CLICK_MS * 2);
+            await exhaustRetries();
+            // Second switch attempt finds no further account and completes.
+            await jest.advanceTimersByTimeAsync(DROPDOWN_MS);
+
+            const done = messagesWithStatus('script_completed');
+            expect(done).toHaveLength(1);
+            expect(done[0].stats).toMatchObject({
+                totalOffersAdded: 3,
+                accountsProcessed: 2,
+                breakdown: [
+                    { account: 'Account 1', offers: 1 },
+                    { account: 'Sapphire', offers: 2 }
+                ]
             });
         });
 
-        test('should send account_switched message', () => {
-            const accountLabel = 'Account 2';
-            chrome.runtime.sendMessage({
-                status: 'account_switched',
-                message: `Switched to account: ${accountLabel}`
-            });
+        test('recovers from the overview redirect using only the option id, not its text', async () => {
+            const run = getInjectedScript();
+            document.body.append(makeTile('a1-offer'));
+            buildAccountSelector([
+                { label: 'Freedom', id: 'menu-item-900000001' },
+                {
+                    // Text contains a long number that must NOT be treated as the account id.
+                    label: 'Sapphire ref 123456789012',
+                    id: 'menu-item-900000002',
+                    onSelect: () => {
+                        window.location.hash = '#/dashboard/overview';
+                    }
+                }
+            ]);
 
-            expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({
-                status: 'account_switched',
-                message: 'Switched to account: Account 2'
-            });
+            run();
+            await jest.advanceTimersByTimeAsync(SETTLE_MS + AFTER_CLICK_MS);
+            await exhaustRetries();
+            await jest.advanceTimersByTimeAsync(DROPDOWN_MS + 200);
+
+            expect(window.location.hash).toBe(
+                '/dashboard/merchantOffers/offer-hub?accountId=900000002'
+            );
         });
 
-        test('should send no_buttons_found message', () => {
-            chrome.runtime.sendMessage({
-                status: 'no_buttons_found',
-                message: 'All accounts processed'
-            });
+        test('falls back to the plain offer hub when the option carries no id attribute', async () => {
+            const run = getInjectedScript();
+            document.body.append(makeTile('a1-offer'));
+            buildAccountSelector([
+                { label: 'Freedom' },
+                {
+                    label: 'Sapphire ref 123456789012',
+                    onSelect: () => {
+                        window.location.hash = '#/dashboard/overview';
+                    }
+                }
+            ]);
 
-            expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({
-                status: 'no_buttons_found',
-                message: 'All accounts processed'
-            });
+            run();
+            await jest.advanceTimersByTimeAsync(SETTLE_MS + AFTER_CLICK_MS);
+            await exhaustRetries();
+            await jest.advanceTimersByTimeAsync(DROPDOWN_MS + 200);
+
+            expect(window.location.hash).toBe('/dashboard/merchantOffers/offer-hub');
         });
     });
 });

@@ -22,10 +22,10 @@ chase-offer-adder/
 ├── popup.js               # Main extension logic
 ├── eslint.config.cjs      # ESLint configuration
 ├── package.json           # Node.js dependencies and scripts
-├── CLAUDE.md              # Project instructions for Claude Code
 ├── images/                # Extension icons and screenshots
 ├── tests/                 # Jest test suite
 │   ├── setup.js           # Chrome API mocks
+│   ├── helpers.js         # Loads the real popup.js/popup.html into jsdom
 │   ├── popup.test.js      # Popup logic tests
 │   └── injected-script.test.js  # Automation logic tests
 └── node_modules/          # Dependencies
@@ -35,7 +35,7 @@ chase-offer-adder/
 
 ### Script Injection Process
 
-1. **Script Injection**: Popup injects automation script into active Chase tab using `chrome.scripting.executeScript`
+1. **Script Injection**: Popup checks that the active tab is an HTTPS `chase.com` page (using the URL that `activeTab` exposes after the click) and only then injects the automation script with `chrome.scripting.executeScript`. The injected script re-checks `location.hostname` and refuses to run if a copy is already running on the page (`window.__chaseOfferAdderRunning`).
 2. **Multi-Section Detection**: Automatically searches for buttons in both carousel (featured offers) and grid (all offers) sections
 3. **Tab Discovery**: Automatically detects and cycles through page tabs if present
 4. **Button Detection**: Script scans for `[data-cy="commerce-tile-button"]` elements (SVG icons) across all page sections
@@ -45,7 +45,7 @@ chase-offer-adder/
 8. **Retry Mechanism**: Implements 5-retry logic with 2-second delays to handle page loading delays (increased from 3 retries/1 second)
 9. **Loading Detection**: Detects page loading states (skeleton loaders, aria-busy) and resets retry count accordingly
 10. **Tab Switching**: Automatically cycles through all tabs before switching accounts (if tabs are present)
-11. **Account Switching**: Automatically cycles through accounts via `mds-select[id="select-credit-card-account"]`
+11. **Account Switching**: Automatically cycles through accounts via `#select-credit-card-account` and the `ul[role="listbox"]#menu` options
 12. **Navigation**: Uses `window.history.back()` between offers
 
 ### State Management
@@ -61,12 +61,16 @@ The extension uses Chrome runtime messaging for popup ↔ injected script commun
 **From Injected Script to Popup:**
 
 - `script_started` - Automation begins
+- `already_running` - A copy of the script is already running on this page; the new copy exits
+- `buttons_counted` - Initial count of unique clickable offers (`total`)
+- `offer_clicked` - An offer was added (`current`, `total`)
 - `script_paused` - Process paused
 - `script_resumed` - Process resumed
-- `tab_switched` - Switched to new tab (New, All offers, etc.)
+- `switching_account` - Finished current account, opening the account dropdown
 - `account_switched` - Switched to new account
+- `script_completed` - All accounts processed; carries `stats` (`totalOffersAdded`, `accountsProcessed`, `breakdown`, `durationMs`)
 - `no_buttons_found` - No offers available
-- `click_error` - Error during button clicking
+- `click_error` - Error during button clicking, or the page is not a Chase page
 
 **From Popup to Injected Script:**
 
@@ -128,30 +132,23 @@ npm run format:check      # Check formatting without changes
 
 ### Test Files
 
-**tests/setup.js** - Global test configuration and Chrome API mocks:
+**tests/setup.js** - Global test configuration: Chrome API mocks (`runtime`, `scripting`, `tabs`, `notifications`) and a writable `window.location` stub (`setPageLocation(hostname, hash)`).
 
-```javascript
-// Mocks chrome.runtime, chrome.scripting, chrome.tabs APIs
-global.chrome = {
-    runtime: { ... },
-    scripting: { ... },
-    tabs: { ... }
-};
-```
+**tests/helpers.js** - Loads the real `popup.html` markup and `popup.js` into jsdom, clicks the run button, and captures the function handed to `chrome.scripting.executeScript`. Tests therefore run the shipped code rather than a copy of it.
 
-**tests/popup.test.js** - Tests popup UI logic and Chrome API interactions:
+**tests/popup.test.js** - Tests the popup against the real DOM:
 
-- Button click handlers
-- Message passing
-- UI state management
-- Chrome API calls
+- Refuses to inject into non-Chase, non-HTTPS, or look-alike hosts
+- Message handling and progress bar updates
+- Completion summary renders page-supplied account names as text (no HTML injection)
+- Duration comes from the injected script, with a safe fallback
 
-**tests/injected-script.test.js** - Tests core automation logic:
+**tests/injected-script.test.js** - Runs the injected function with fake timers against a mock Chase DOM:
 
-- Button detection algorithms
-- Retry mechanism
-- Account switching logic
-- Error handling
+- Host guard and double-injection guard
+- Clicks each unadded offer once, skips checkmarked offers, reports stats
+- Detail-page back navigation, loading-state retry reset, pause/resume
+- Account switching, per-account stats, and overview-redirect recovery using only option attributes
 
 ## Critical Implementation Details
 
@@ -197,8 +194,9 @@ if (!buttonToClick) {
 
 Required permissions in `manifest.json`:
 
-- `activeTab`: Required for content script injection
+- `activeTab`: Grants temporary access to the active tab (including its URL) after the user clicks the extension. No host permissions are requested; the popup checks that the URL is an HTTPS `chase.com` host before injecting.
 - `scripting`: Required for `executeScript` API
+- `notifications`: Completion notification
 
 ### Selector Dependencies
 
@@ -210,8 +208,8 @@ Extension relies on specific Chase selectors that may break with website updates
 - **Carousel section**: `[data-testid*="carousel"]` (featured/highlighted offers)
 - **Grid section**: `[data-testid="grid-items-container"]` (all offers)
 - **Tab navigation** (optional): Multiple selectors including `button[data-cy*="new"]`, `[role="tab"][aria-label*="New"]`, etc.
-- **Account selector**: `mds-select[id="select-credit-card-account"]`
-- **Account options**: `mds-select-option`
+- **Account selector**: `#select-credit-card-account` (combobox)
+- **Account options**: `ul[role="listbox"]#menu li[role="option"]`; the account id used for redirect recovery is read only from the option's attributes (`value`, `data-value`, `data-account-id`, `id`), never from its text
 
 **Notes**:
 
@@ -267,11 +265,11 @@ Configured via Husky and lint-staged:
 {
     "manifest_version": 3,
     "name": "Chase Offer Adder",
-    "version": "1.0.0",
-    "permissions": ["activeTab", "scripting"],
+    "version": "1.1.1",
+    "permissions": ["activeTab", "scripting", "notifications"],
     "action": {
         "default_popup": "popup.html",
-        "default_icon": "images/icon128.png"
+        "default_icon": { "128": "images/icon128.png" }
     },
     "icons": {
         "128": "images/icon128.png"
@@ -314,14 +312,16 @@ Configured via Husky and lint-staged:
 ### Data Privacy
 
 - No personal data collection or storage
-- No external network requests
+- No external network requests: the popup bundles no remote fonts or scripts
+- Only runs on HTTPS `chase.com` hosts (checked in the popup and again inside the injected script)
 - Only interacts with Chase's legitimate DOM elements
 
 ### Content Security Policy
 
 - Follows Chrome extension security best practices
 - Uses content script injection instead of inline scripts
-- Validates all DOM interactions
+- Text read from the Chase page (account names) is rendered in the popup with `textContent`, never `innerHTML`
+- Only one copy of the automation runs per page; re-clicking "ADD OFFERS" reports `already_running`
 
 ## Debugging
 
@@ -376,7 +376,20 @@ console.log('Popup received message:', request);
 
 ## Recent Updates
 
-### Version 1.1 (Current)
+### Version 1.1.1 (Current)
+
+**Security hardening and bug fixes:**
+
+- Popup refuses to inject unless the active tab is an HTTPS `chase.com` page; the injected script re-checks the host
+- Completion summary builds DOM nodes with `textContent` instead of `innerHTML`
+- Account id for redirect recovery is read only from option attributes, not option text
+- Removed the Google Fonts import so the popup makes no network requests
+- Guard against double injection when "ADD OFFERS" is clicked twice
+- Elapsed time is measured by the injected script, so reopening the popup mid-run no longer breaks it
+- Tests now load the real `popup.js` instead of re-implementing its logic
+- Dev dependency advisories fixed; GitHub Actions pinned to commit SHAs
+
+### Version 1.1
 
 **Enhanced Retry Mechanism:**
 

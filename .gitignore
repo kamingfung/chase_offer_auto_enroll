@@ -15,7 +15,7 @@ uv.lock
 
 # dev
 .claude
-.husky
+.husky/_
 
 # packaged extension
 chase-offer-adder-v*.zip

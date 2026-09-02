@@ -1,6 +1,6 @@
 {
     "name": "chase-offer-adder",
-    "version": "1.0.1",
+    "version": "1.1.1",
     "description": "Chrome extension to automatically add Chase offers",
     "main": "popup.js",
     "type": "module",
@@ -8,11 +8,11 @@
         "test": "jest",
         "test:watch": "jest --watch",
         "test:coverage": "jest --coverage",
-        "lint": "eslint *.js",
-        "lint:fix": "eslint *.js --fix",
-        "format": "prettier --write *.js *.json *.html",
-        "format:check": "prettier --check *.js *.json *.html",
-        "prepare": "husky install"
+        "lint": "eslint *.js tests/*.js",
+        "lint:fix": "eslint *.js tests/*.js --fix",
+        "format": "prettier --write *.js *.json *.html *.css tests/*.js",
+        "format:check": "prettier --check *.js *.json *.html *.css tests/*.js",
+        "prepare": "husky"
     },
     "keywords": [
         "chrome-extension",

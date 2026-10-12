@@ -14,6 +14,15 @@ global.chrome = {
     },
     scripting: {
         executeScript: jest.fn()
+    },
+    storage: {
+        local: {
+            get: jest.fn((_keys, callback) => callback({})),
+            set: jest.fn()
+        }
+    },
+    notifications: {
+        create: jest.fn()
     }
 };
 

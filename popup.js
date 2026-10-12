@@ -58,10 +58,14 @@ function displayStats(stats) {
         stats.breakdown.forEach(item => {
             const div = document.createElement('div');
             div.className = 'breakdown-item';
-            div.innerHTML = `
-                <span class="breakdown-account">${item.account}</span>
-                <span class="breakdown-count">${item.offers} offers</span>
-            `;
+            // Account names come from the Chase page, so set them as text, never as HTML
+            const accountSpan = document.createElement('span');
+            accountSpan.className = 'breakdown-account';
+            accountSpan.textContent = item.account;
+            const countSpan = document.createElement('span');
+            countSpan.className = 'breakdown-count';
+            countSpan.textContent = `${item.offers} offers`;
+            div.append(accountSpan, countSpan);
             breakdownContainer.appendChild(div);
 
             if (item.offerNames && item.offerNames.length > 0) {
@@ -89,15 +93,32 @@ function showNotification(stats) {
 
 // Applies a status update from the injected script, whether it just arrived live
 // or was restored from storage after the popup was closed and reopened mid-run.
+const RUNNING_STATUSES = [
+    'script_started',
+    'buttons_counted',
+    'offer_clicked',
+    'script_paused',
+    'script_resumed',
+    'switching_account',
+    'account_switched',
+    'click_error'
+];
+
 function applyStatusUpdate(request) {
     console.log('Applying status update:', request);
 
-    if (request.status === 'script_started') {
-        updateStatus('Adding offers...', 'status-running');
+    // Any in-progress message (possibly the only one restored on reopen) means the run controls belong on screen
+    if (RUNNING_STATUSES.includes(request.status)) {
+        isPaused = request.status === 'script_paused';
+        pauseButton.textContent = isPaused ? 'Resume' : 'Pause';
         pauseButton.style.display = 'inline-block';
         progressContainer.style.display = 'block';
         statsContainer.style.display = 'none';
-        showDog('working');
+        showDog(isPaused ? 'header' : 'working');
+    }
+
+    if (request.status === 'script_started') {
+        updateStatus('Adding offers...', 'status-running');
     } else if (request.status === 'buttons_counted') {
         updateStatus(request.message, 'status-running');
         if (request.total) {
@@ -110,12 +131,8 @@ function applyStatusUpdate(request) {
         }
     } else if (request.status === 'script_paused') {
         updateStatus('Paused', 'status-paused');
-        pauseButton.textContent = 'Resume';
-        showDog('header'); // Back to sitting dog when paused
     } else if (request.status === 'script_resumed') {
         updateStatus('Adding offers...', 'status-running');
-        pauseButton.textContent = 'Pause';
-        showDog('working');
     } else if (request.status === 'switching_account') {
         updateStatus(request.message, 'status-running');
     } else if (request.status === 'account_switched') {
@@ -183,8 +200,15 @@ runButton.addEventListener('click', () => {
         // Persist every status update so the popup can restore its UI after being closed/reopened
         const reportStatus = payload => {
             chrome.runtime.sendMessage(payload);
+            // Progress is saved separately: the latest message (e.g. account_switched) often has no counts
+            const update = { chaseOfferStatus: payload };
+            if (payload.status === 'script_started') {
+                update.chaseOfferProgress = null;
+            } else if (payload.total) {
+                update.chaseOfferProgress = { current: payload.current || 0, total: payload.total };
+            }
             try {
-                chrome.storage.local.set({ chaseOfferStatus: payload });
+                chrome.storage.local.set(update);
             } catch (err) {
                 console.log('Could not persist status to storage:', err);
             }
@@ -265,7 +289,8 @@ runButton.addEventListener('click', () => {
 
         async function waitForResume() {
             if (isPaused) {
-                isWaitingForResume = true;
+                // Deliberately not setting isWaitingForResume: this caller resumes itself when the
+                // poll sees !isPaused. Setting it made the resume handler start a second, parallel loop.
                 return new Promise(resolve => {
                     const checkPause = setInterval(() => {
                         if (!isPaused) {
@@ -840,10 +865,14 @@ runButton.addEventListener('click', () => {
 
 // Restore the last known status when the popup is opened/reopened, so progress
 // and pause state survive the popup being closed mid-run.
-chrome.storage.local.get('chaseOfferStatus', result => {
-    if (result && result.chaseOfferStatus) {
-        applyStatusUpdate(result.chaseOfferStatus);
-    } else {
+chrome.storage.local.get(['chaseOfferStatus', 'chaseOfferProgress'], result => {
+    const { chaseOfferStatus, chaseOfferProgress } = result || {};
+    if (!chaseOfferStatus) {
         updateStatus('Ready', 'status-idle');
+        return;
+    }
+    applyStatusUpdate(chaseOfferStatus);
+    if (chaseOfferProgress && RUNNING_STATUSES.includes(chaseOfferStatus.status)) {
+        updateProgress(chaseOfferProgress.current, chaseOfferProgress.total);
     }
 });

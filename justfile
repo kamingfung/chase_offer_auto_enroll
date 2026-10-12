@@ -33,19 +33,19 @@ test-coverage:
 
 # Check linting
 lint:
-    npx eslint *.js scripts/**/*.js
+    npx eslint *.js scripts/**/*.js tests/**/*.js
 
 # Auto-fix linting issues
 lint-fix:
-    npx eslint *.js scripts/**/*.js --fix
+    npx eslint *.js scripts/**/*.js tests/**/*.js --fix
 
 # Format all files with Prettier
 format:
-    npx prettier --write "*.js" "*.json" "*.html" "scripts/**/*.js"
+    npx prettier --write "*.js" "*.json" "*.html" "scripts/**/*.js" "tests/**/*.js"
 
 # Check formatting without making changes
 format-check:
-    npx prettier --check "*.js" "*.json" "*.html" "scripts/**/*.js"
+    npx prettier --check "*.js" "*.json" "*.html" "scripts/**/*.js" "tests/**/*.js"
 
 # ─── Security ─────────────────────────────────────────────────────────────────
 

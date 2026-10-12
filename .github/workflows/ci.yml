@@ -33,10 +33,10 @@ jobs:
               run: npm ci
 
             - name: Check formatting
-              run: npx prettier --check "*.js" "*.json" "*.html" "scripts/**/*.js"
+              run: npx prettier --check "*.js" "*.json" "*.html" "scripts/**/*.js" "tests/**/*.js"
 
             - name: Lint
-              run: npx eslint *.js scripts/**/*.js
+              run: npx eslint *.js scripts/**/*.js tests/**/*.js
 
             - name: Run tests
               run: npx jest --ci --coverage

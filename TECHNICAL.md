@@ -197,36 +197,20 @@ Optional: install [`just`](https://github.com/casey/just) (`brew install just`) 
 
 ### Test Environment
 
-- **Jest + JSDOM**: Tests run in simulated browser environment
-- **Chrome API Mocking**: All Chrome extension APIs mocked in `tests/setup.js`
-- **Isolated Testing**: Each test runs independently without browser dependencies
+- **Jest + JSDOM**: Tests run in a simulated browser environment
+- **Real code, not copies**: Tests load the shipped `popup.js` against the real `popup.html` markup. They never re-implement its logic, so a selector or behaviour change in `popup.js` is what the tests check
+- **Chrome API Mocking**: `tests/setup.js` mocks `chrome.runtime`, `tabs`, `scripting`, `storage.local`, and `notifications`
+- **Fake timers**: The automation runs on timeouts (1.5s per offer, 2s retries), so tests drive it with `jest.advanceTimersByTimeAsync`
 
 ### Test Files
 
-**tests/setup.js** - Global test configuration and Chrome API mocks:
+**tests/helpers.js** - `loadPopup(stored)` renders `popup.html`, optionally pre-seeds `chrome.storage` (to simulate reopening the popup mid-run), and loads `popup.js`. `clickRunAndGetInjectedScript()` clicks ADD OFFERS and returns the function handed to `chrome.scripting.executeScript`.
 
-```javascript
-// Mocks chrome.runtime, chrome.scripting, chrome.tabs APIs
-global.chrome = {
-    runtime: { ... },
-    scripting: { ... },
-    tabs: { ... }
-};
-```
+**tests/popup.test.js** - Popup behaviour: injecting into the active tab, Pause/Resume messages, the progress bar (including clamping), restoring progress and pause state after reopening, and the completion summary (merchant names, account names rendered as text, one notification).
 
-**tests/popup.test.js** - Tests popup UI logic and Chrome API interactions:
+**tests/injected-script.test.js** - Runs the real injected script against a fake Chase Offers page shaped like the October 2026 markup: a paging "Recommended offers" carousel, an offer grid with some offers already added, and two accounts behind the account sheet. Covers adding every un-added offer across pages and accounts, the summary per account, the pre-October combobox fallback, progress persistence, and Pause/Resume (including pausing during startup).
 
-- Button click handlers
-- Message passing
-- UI state management
-- Chrome API calls
-
-**tests/injected-script.test.js** - Tests core automation logic:
-
-- Button detection algorithms
-- Retry mechanism
-- Account switching logic
-- Error handling
+When Chase changes its markup, update the fake page in `buildChasePage()` to match the new saved page in `reference/`, then fix `popup.js` until the tests pass again.
 
 ## Critical Implementation Details
 

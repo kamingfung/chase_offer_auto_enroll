@@ -2,235 +2,222 @@
  * @jest-environment jsdom
  */
 
-describe('Chase Offer Adder - Injected Script Tests', () => {
-    let mockButton, mockSelect, mockOption1, mockOption2;
+const { loadPopup, clickRunAndGetInjectedScript, sentMessages } = require('./helpers');
 
+/**
+ * A fake Chase Offers page shaped like the October 2026 markup: a "Recommended offers"
+ * carousel that shows a page at a time, an offer grid, and an account picker. Clicking
+ * an offer marks it added, like the real page. Records every offer click in `clicks`.
+ */
+function buildChasePage({ accounts, picker = 'sheet' }) {
+    const clicks = [];
+    const added = new Set(accounts.flatMap(a => a.grid.filter(o => o.added).map(o => o.name)));
+    let accountIndex = 0;
+    let carouselPage = 0;
+
+    const pickerEl = document.createElement(picker === 'sheet' ? 'button' : 'div');
+    pickerEl.setAttribute(
+        'data-testid',
+        picker === 'sheet' ? 'account-selector-trigger' : 'select-credit-card-account'
+    );
+    const offersArea = document.createElement('main');
+    document.body.append(pickerEl, offersArea);
+
+    const markAdded = (name, el) =>
+        el.addEventListener('click', () => {
+            clicks.push(name);
+            added.add(name);
+            render();
+        });
+
+    function render() {
+        const account = accounts[accountIndex];
+        pickerEl.textContent = account.name;
+        offersArea.innerHTML = '';
+
+        const pages = account.recommendedPages || [];
+        if (pages.length) {
+            const row = document.createElement('div');
+            row.setAttribute('data-testid', 'carousel-featured-category-offer-tile-list-container');
+            for (const name of pages[carouselPage]) {
+                const tile = document.createElement('a');
+                tile.setAttribute('role', 'button');
+                tile.setAttribute('data-cy', 'offer');
+                tile.id = `offer-${name}`;
+                tile.innerHTML = `<span class="offerMerchantName">${name}</span>${
+                    added.has(name) ? '' : '<div data-testid="offer-accent-add"><svg></svg></div>'
+                }`;
+                markAdded(name, tile);
+                row.append(tile);
+            }
+            const next = document.createElement('button');
+            next.setAttribute('data-testid', 'carouselRightChevron');
+            next.disabled = carouselPage === pages.length - 1;
+            next.addEventListener('click', () => {
+                carouselPage++;
+                render();
+            });
+            offersArea.append(row, next);
+        }
+
+        for (const { name } of account.grid) {
+            const tile = document.createElement('a');
+            tile.setAttribute('role', 'button');
+            tile.setAttribute('data-cy', 'commerce-tile');
+            tile.id = `FIGG:${name}`;
+            const icon = added.has(name) ? 'commerce-tile-icon' : 'commerce-tile-button';
+            tile.innerHTML = `<span class="titleTagVariant2Container">${name}</span><svg data-cy="${icon}"></svg>`;
+            markAdded(name, tile);
+            offersArea.append(tile);
+        }
+    }
+
+    function selectAccount(i) {
+        accountIndex = i;
+        carouselPage = 0;
+        document.getElementById('accountSelectorSheet')?.remove();
+        document.getElementById('menu')?.remove();
+        render();
+    }
+
+    pickerEl.addEventListener('click', () => {
+        const open =
+            document.getElementById('accountSelectorSheet') || document.getElementById('menu');
+        if (open) return open.remove();
+
+        const list = document.createElement('ul');
+        if (picker === 'sheet') {
+            const sheet = document.createElement('div');
+            sheet.id = 'accountSelectorSheet';
+            sheet.append(list);
+            document.body.append(sheet);
+        } else {
+            list.id = 'menu';
+            list.setAttribute('role', 'listbox');
+            document.body.append(list);
+        }
+        accounts.forEach((account, i) => {
+            const item = document.createElement('li');
+            if (picker === 'sheet') {
+                item.className = 'accountSelectorListItem';
+                item.innerHTML = `<span class="accountSelectorListLabel">${account.name}</span>`;
+            } else {
+                item.setAttribute('role', 'option');
+                item.textContent = account.name;
+            }
+            item.addEventListener('click', () => selectAccount(i));
+            list.append(item);
+        });
+    });
+
+    render();
+    return { clicks };
+}
+
+const twoCards = [
+    {
+        name: 'Sapphire...1234',
+        recommendedPages: [['Pandora', 'Warby Parker'], ['Redken']],
+        grid: [{ name: 'Pureology', added: true }, { name: 'Cole Haan' }]
+    },
+    {
+        name: 'Freedom...5678',
+        grid: [{ name: 'Blueland' }, { name: 'Logitech', added: true }]
+    }
+];
+
+/**
+ * Load the popup, build the fake Chase page (after the popup, which resets the body),
+ * click ADD OFFERS, and run the injected script on the page.
+ */
+function startRun(pageOptions) {
+    loadPopup();
+    const page = buildChasePage(pageOptions);
+    clickRunAndGetInjectedScript()();
+    // The injected script registers its own pause/resume listener after the popup's
+    const scriptListener = chrome.runtime.onMessage.addListener.mock.calls.at(-1)[0];
+    return { page, scriptListener };
+}
+
+describe('Injected automation script', () => {
     beforeEach(() => {
-        // Reset DOM
-        document.body.innerHTML = '';
-
-        // Create mock elements
-        mockButton = document.createElement('mds-icon');
-        mockButton.setAttribute('type', 'ico_add_circle');
-        mockButton.setAttribute('data-cy', 'commerce-tile-button');
-
-        const parentButton = document.createElement('div');
-        parentButton.setAttribute('role', 'button');
-        parentButton.appendChild(mockButton);
-        document.body.appendChild(parentButton);
-
-        // Create mock account selector
-        mockSelect = document.createElement('mds-select');
-        mockSelect.setAttribute('id', 'select-credit-card-account');
-
-        mockOption1 = document.createElement('mds-select-option');
-        mockOption1.setAttribute('label', 'Account 1');
-        mockOption1.textContent = 'Account 1';
-
-        mockOption2 = document.createElement('mds-select-option');
-        mockOption2.setAttribute('label', 'Account 2');
-        mockOption2.textContent = 'Account 2';
-
-        mockSelect.appendChild(mockOption1);
-        mockSelect.appendChild(mockOption2);
-        document.body.appendChild(mockSelect);
-
-        // Reset Chrome API mocks
         jest.clearAllMocks();
+        jest.useFakeTimers();
+        // jsdom has no layout: report every element as visible and on screen
+        jest.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
+            width: 40,
+            height: 40,
+            top: 10,
+            left: 10,
+            bottom: 50,
+            right: 50
+        });
+        Element.prototype.scrollIntoView = jest.fn();
+        window.scrollTo = jest.fn();
     });
 
-    describe('Button Detection Logic', () => {
-        test('should find add buttons with correct selector', () => {
-            const addButtonSelector =
-                'mds-icon[type="ico_add_circle"][data-cy="commerce-tile-button"]';
-            const buttons = Array.from(document.querySelectorAll(addButtonSelector));
-
-            expect(buttons.length).toBe(1);
-            expect(buttons[0]).toBe(mockButton);
-        });
-
-        test('should check button visibility correctly', () => {
-            // Mock getBoundingClientRect for visibility check
-            mockButton.getBoundingClientRect = jest.fn(() => ({
-                width: 100,
-                height: 50,
-                top: 100,
-                left: 100,
-                bottom: 150,
-                right: 200
-            }));
-
-            // Mock window dimensions
-            Object.defineProperty(window, 'innerHeight', { value: 800, writable: true });
-            Object.defineProperty(window, 'innerWidth', { value: 1200, writable: true });
-
-            const rect = mockButton.getBoundingClientRect();
-            const isVisible = rect.width > 0 && rect.height > 0;
-            const isInViewport =
-                rect.top >= 0 &&
-                rect.left >= 0 &&
-                rect.bottom <= window.innerHeight &&
-                rect.right <= window.innerWidth;
-
-            expect(isVisible).toBe(true);
-            expect(isInViewport).toBe(true);
-        });
-
-        test('should check if button is clickable', () => {
-            const parentButton = mockButton.closest('[role="button"]');
-            expect(parentButton).toBeTruthy();
-            expect(parentButton.disabled).toBeFalsy();
-        });
+    afterEach(() => {
+        jest.useRealTimers();
+        jest.restoreAllMocks();
     });
 
-    describe('Account Selection Logic', () => {
-        test('should find account selector', () => {
-            const accountSelector = 'mds-select[id="select-credit-card-account"]';
-            const select = document.querySelector(accountSelector);
+    test('adds every un-added offer on every card, then reports a summary', async () => {
+        const { page } = startRun({ accounts: twoCards });
+        await jest.advanceTimersByTimeAsync(120000);
 
-            expect(select).toBe(mockSelect);
-        });
+        // Recommended row (both carousel pages) and the grid; already-added offers untouched
+        expect(page.clicks).toEqual(['Pandora', 'Warby Parker', 'Cole Haan', 'Redken', 'Blueland']);
 
-        test('should find account options', () => {
-            const options = mockSelect.querySelectorAll('mds-select-option');
-
-            expect(options.length).toBe(2);
-            expect(options[0].getAttribute('label')).toBe('Account 1');
-            expect(options[1].getAttribute('label')).toBe('Account 2');
-        });
-
-        test('should simulate account switching logic', () => {
-            let currentAccountIndex = 0;
-            const options = mockSelect.querySelectorAll('mds-select-option');
-
-            // Simulate switching to next account
-            currentAccountIndex++;
-
-            expect(currentAccountIndex).toBe(1);
-            expect(currentAccountIndex < options.length).toBe(true);
-            expect(options[currentAccountIndex]).toBe(mockOption2);
-        });
+        const [completed] = sentMessages('script_completed');
+        expect(completed.stats.totalOffersAdded).toBe(5);
+        expect(completed.stats.breakdown).toEqual([
+            {
+                account: 'Sapphire...1234',
+                offers: 4,
+                offerNames: ['Pandora', 'Warby Parker', 'Cole Haan', 'Redken']
+            },
+            { account: 'Freedom...5678', offers: 1, offerNames: ['Blueland'] }
+        ]);
     });
 
-    describe('Retry Logic', () => {
-        test('should implement retry mechanism', () => {
-            let retryCount = 0;
-            const maxRetries = 3;
+    test('still switches cards with the pre-October combobox picker', async () => {
+        const { page } = startRun({ accounts: twoCards, picker: 'combobox' });
+        await jest.advanceTimersByTimeAsync(120000);
 
-            // Simulate no buttons found scenario
-            const buttons = [];
-
-            if (buttons.length === 0 && retryCount < maxRetries) {
-                retryCount++;
-            }
-
-            expect(retryCount).toBe(1);
-            expect(retryCount < maxRetries).toBe(true);
-        });
-
-        test('should reset retry count when button is found', () => {
-            let retryCount = 2;
-            const buttons = [mockButton]; // Button found
-
-            if (buttons.length > 0) {
-                retryCount = 0;
-            }
-
-            expect(retryCount).toBe(0);
-        });
-
-        test('should switch account after max retries', () => {
-            let retryCount = 3;
-            const maxRetries = 3;
-            let shouldSwitchAccount = false;
-
-            if (retryCount >= maxRetries) {
-                retryCount = 0;
-                shouldSwitchAccount = true;
-            }
-
-            expect(shouldSwitchAccount).toBe(true);
-            expect(retryCount).toBe(0);
-        });
+        expect(page.clicks).toContain('Blueland');
+        expect(sentMessages('account_switched')[0].message).toContain('Freedom...5678');
     });
 
-    describe('Delay Generation', () => {
-        test('should generate delays within specified range', () => {
-            const minDelay = 300;
-            const maxDelay = 1300;
-            const getRandomDelay = () => Math.random() * (maxDelay - minDelay) + minDelay;
+    test('saves progress to storage so a reopened popup can restore it', async () => {
+        startRun({ accounts: twoCards });
+        await jest.advanceTimersByTimeAsync(3000);
 
-            // Test multiple times to ensure consistency
-            for (let i = 0; i < 10; i++) {
-                const delay = getRandomDelay();
-                expect(delay).toBeGreaterThanOrEqual(minDelay);
-                expect(delay).toBeLessThanOrEqual(maxDelay);
-            }
-        });
+        expect(chrome.storage.local.set).toHaveBeenCalledWith(
+            expect.objectContaining({ chaseOfferProgress: { current: 1, total: 3 } })
+        );
     });
 
-    describe('Pause/Resume Logic', () => {
-        test('should handle pause state correctly', () => {
-            let isPaused = false;
-            let isWaitingForResume = false;
+    test('Pause stops clicking until Resume', async () => {
+        const { page, scriptListener } = startRun({ accounts: twoCards });
+        await jest.advanceTimersByTimeAsync(1200); // first offer clicked
+        scriptListener({ action: 'pause' });
+        await jest.advanceTimersByTimeAsync(30000);
+        expect(page.clicks).toEqual(['Pandora']);
 
-            // Simulate pause
-            isPaused = true;
-            if (isPaused) {
-                isWaitingForResume = true;
-            }
-
-            expect(isPaused).toBe(true);
-            expect(isWaitingForResume).toBe(true);
-        });
-
-        test('should handle resume state correctly', () => {
-            let isPaused = true;
-            let isWaitingForResume = true;
-
-            // Simulate resume
-            isPaused = false;
-            if (!isPaused && isWaitingForResume) {
-                isWaitingForResume = false;
-            }
-
-            expect(isPaused).toBe(false);
-            expect(isWaitingForResume).toBe(false);
-        });
+        scriptListener({ action: 'resume' });
+        await jest.advanceTimersByTimeAsync(120000);
+        expect(page.clicks).toHaveLength(5);
     });
 
-    describe('Chrome Runtime Messages', () => {
-        test('should send script_started message', () => {
-            chrome.runtime.sendMessage({ status: 'script_started' });
+    test('pausing during startup does not start a second, duplicate run', async () => {
+        const { page, scriptListener } = startRun({ accounts: twoCards });
+        scriptListener({ action: 'pause' }); // before the 1s startup delay ends
+        await jest.advanceTimersByTimeAsync(5000);
+        scriptListener({ action: 'resume' });
+        await jest.advanceTimersByTimeAsync(120000);
 
-            expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({
-                status: 'script_started'
-            });
-        });
-
-        test('should send account_switched message', () => {
-            const accountLabel = 'Account 2';
-            chrome.runtime.sendMessage({
-                status: 'account_switched',
-                message: `Switched to account: ${accountLabel}`
-            });
-
-            expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({
-                status: 'account_switched',
-                message: 'Switched to account: Account 2'
-            });
-        });
-
-        test('should send no_buttons_found message', () => {
-            chrome.runtime.sendMessage({
-                status: 'no_buttons_found',
-                message: 'All accounts processed'
-            });
-
-            expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({
-                status: 'no_buttons_found',
-                message: 'All accounts processed'
-            });
-        });
+        expect(page.clicks).toEqual(['Pandora', 'Warby Parker', 'Cole Haan', 'Redken', 'Blueland']);
+        // A second loop would run its own retries and announce an extra account switch
+        expect(sentMessages('switching_account')).toHaveLength(2);
     });
 });

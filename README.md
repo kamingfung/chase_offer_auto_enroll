@@ -39,10 +39,10 @@ This Chrome extension automates the tedious process of adding Chase Offers to yo
 
 ### How It Works
 
-1. 🔍 **Scans** both carousel (featured) and grid (all offers) sections for available "Add to Card" buttons
+1. 🔍 **Scans** both the Recommended offers row and the full offer list for available "Add to Card" buttons
 2. 🖱️ **Clicks** each button automatically with retry logic
-3. 🔄 **Switches between tabs** if multiple page tabs exist
-4. 🔄 **Switches accounts** when all offers/tabs are complete
+3. ➡️ **Pages through** the Recommended offers row to reach offers not yet shown
+4. 🔄 **Switches accounts** when all offers on the current card are added
 5. 📊 **Updates status** in real-time
 6. ⏸️ **Pause/resume** controls for full user control
 
@@ -73,13 +73,12 @@ While it runs:
 ## ✨ Features
 
 - **🎯 Smart Button Detection**: Automatically finds and clicks "Add to Card" buttons in all page sections
-- **📑 Multi-Section Support**: Processes both carousel (featured) and grid (all offers) sections automatically
-- **📑 Multi-Tab Support**: Detects and cycles through page tabs if they exist
+- **📑 Multi-Section Support**: Processes both the Recommended offers row and the full offer list automatically
 - **🔄 Multi-Account Support**: Processes offers across all your credit card accounts
 - **✅ Smart Filtering**: Skips offers already added (with checkmark icons)
 - **⏸️ Pause/Resume Controls**: Stop and continue the process at any time
 - **🔁 Enhanced Retry Logic**: 5-retry mechanism with smart loading detection for maximum reliability
-- **📊 Real-time Status**: Live updates on progress, tab switching, and account switching
+- **📊 Real-time Status**: Live updates on progress and account switching
 - **🛡️ Error Handling**: Graceful handling of various scenarios
 - **🧭 Smart Navigation**: Efficient browser navigation between offers
 - **🎚️ Auto-Scroll**: Automatically scrolls to buttons that are off-screen
@@ -210,7 +209,7 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ---
 
-**Version:** 2026.10.12.1
+**Version:** 2026.10.12.2
 **Last Updated:** 2026-10-12
 
 See [CHANGELOG.md](CHANGELOG.md) for release history, or [TECHNICAL.md](TECHNICAL.md) for detailed technical changes.

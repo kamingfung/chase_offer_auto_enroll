@@ -2,161 +2,122 @@
  * @jest-environment jsdom
  */
 
-describe('Chase Offer Adder - Popup Tests', () => {
-    let mockStatusDiv;
-    let mockRunButton;
-    let mockPauseButton;
+const { loadPopup, clickRunAndGetInjectedScript } = require('./helpers');
 
-    beforeEach(() => {
-        // Reset DOM
-        document.body.innerHTML = `
-      <button id="runScriptButton">Add offers</button>
-      <div id="status">Status: Idle</div>
-    `;
+const $ = id => document.getElementById(id);
+const isShown = el => el.style.display !== 'none' && el.style.display !== '';
 
-        mockStatusDiv = document.getElementById('status');
-        mockRunButton = document.getElementById('runScriptButton');
+describe('Popup', () => {
+    beforeEach(() => jest.clearAllMocks());
 
-        // Create pause button (normally created by popup.js)
-        mockPauseButton = document.createElement('button');
-        mockPauseButton.id = 'pauseButton';
-        mockPauseButton.textContent = 'Pause';
-        mockPauseButton.style.display = 'none';
-        mockRunButton.parentNode.insertBefore(mockPauseButton, mockRunButton.nextSibling);
+    test('shows Ready when nothing has run yet', () => {
+        loadPopup();
 
-        // Reset Chrome API mocks
-        jest.clearAllMocks();
+        expect($('status').textContent).toBe('Ready');
+        expect(isShown($('progressContainer'))).toBe(false);
     });
 
-    describe('DOM Elements', () => {
-        test('should have required DOM elements', () => {
-            expect(mockStatusDiv).toBeTruthy();
-            expect(mockRunButton).toBeTruthy();
-            expect(mockStatusDiv.textContent).toBe('Status: Idle');
+    test('injects the automation script into the active tab', () => {
+        loadPopup();
+
+        clickRunAndGetInjectedScript();
+
+        expect(chrome.scripting.executeScript).toHaveBeenCalledWith({
+            target: { tabId: 7 },
+            func: expect.any(Function)
         });
     });
 
-    describe('Chrome Runtime Message Handling', () => {
-        test('should update status for no_buttons_found message', () => {
-            const mockRequest = {
-                status: 'no_buttons_found',
-                message: 'All accounts processed'
-            };
+    test('Pause and Resume send the matching action to the tab', () => {
+        loadPopup();
 
-            // Simulate the message handler logic
-            mockStatusDiv.textContent = mockRequest.message;
-            mockStatusDiv.style.color = '#FFA500';
-            mockPauseButton.style.display = 'none';
+        $('pauseButton').click();
+        $('pauseButton').click();
 
-            expect(mockStatusDiv.textContent).toBe('All accounts processed');
-            expect(mockStatusDiv.style.color).toBe('rgb(255, 165, 0)');
-            expect(mockPauseButton.style.display).toBe('none');
+        expect(chrome.tabs.sendMessage.mock.calls).toEqual([
+            [7, { action: 'pause' }],
+            [7, { action: 'resume' }]
+        ]);
+    });
+
+    test('updates and clamps the progress bar from live messages', () => {
+        const listener = loadPopup();
+
+        listener({ status: 'script_started' });
+        listener({ status: 'offer_clicked', message: 'Added offer 3', current: 3, total: 10 });
+        expect(document.querySelector('.progress-text').textContent).toBe('3/10 offers (30%)');
+
+        // Offers loaded mid-run (carousel pages) can push current past the initial count
+        listener({ status: 'offer_clicked', message: 'Added offer 12', current: 12, total: 10 });
+        expect(document.querySelector('.progress-fill').style.width).toBe('100%');
+    });
+
+    describe('reopening the popup mid-run', () => {
+        test('shows the progress bar and Pause button with the saved progress', () => {
+            loadPopup({
+                chaseOfferStatus: { status: 'account_switched', message: 'Switched to account: B' },
+                chaseOfferProgress: { current: 4, total: 9 }
+            });
+
+            expect($('status').textContent).toBe('Switched to account: B');
+            expect(isShown($('progressContainer'))).toBe(true);
+            expect(isShown($('pauseButton'))).toBe(true);
+            expect(document.querySelector('.progress-text').textContent).toBe('4/9 offers (44%)');
         });
 
-        test('should update status for click_error message', () => {
-            const mockRequest = {
-                status: 'click_error',
-                message: 'Button not found'
-            };
+        test('a paused run resumes on the first click instead of pausing again', () => {
+            loadPopup({ chaseOfferStatus: { status: 'script_paused' } });
 
-            mockStatusDiv.textContent = `Click Error: ${mockRequest.message}`;
-            mockStatusDiv.style.color = '#FF0000';
+            expect($('pauseButton').textContent).toBe('Resume');
+            $('pauseButton').click();
 
-            expect(mockStatusDiv.textContent).toBe('Click Error: Button not found');
-            expect(mockStatusDiv.style.color).toBe('rgb(255, 0, 0)');
-        });
-
-        test('should update status for script_started message', () => {
-            mockStatusDiv.textContent = 'Status: Adding offers...';
-            mockStatusDiv.style.color = '#008000';
-            mockPauseButton.style.display = 'inline-block';
-
-            expect(mockStatusDiv.textContent).toBe('Status: Adding offers...');
-            expect(mockStatusDiv.style.color).toBe('rgb(0, 128, 0)');
-            expect(mockPauseButton.style.display).toBe('inline-block');
-        });
-
-        test('should update status for script_paused message', () => {
-            mockStatusDiv.textContent = 'Status: Paused';
-            mockStatusDiv.style.color = '#FFA500';
-            mockPauseButton.textContent = 'Resume';
-
-            expect(mockStatusDiv.textContent).toBe('Status: Paused');
-            expect(mockStatusDiv.style.color).toBe('rgb(255, 165, 0)');
-            expect(mockPauseButton.textContent).toBe('Resume');
+            expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(7, { action: 'resume' });
         });
     });
 
-    describe('Script Configuration', () => {
-        test('should have correct selectors and delays', () => {
-            const config = {
-                addButtonSelector:
-                    'mds-icon[type="ico_add_circle"][data-cy="commerce-tile-button"]',
-                accountSelector: 'mds-select[id="select-credit-card-account"]',
-                minDelay: 300,
-                maxDelay: 1300
-            };
+    describe('completion summary', () => {
+        const completed = {
+            status: 'script_completed',
+            stats: {
+                totalOffersAdded: 3,
+                accountsProcessed: 2,
+                timeTaken: '1m 5s',
+                breakdown: [
+                    { account: 'Sapphire...1234', offers: 2, offerNames: ['Pandora', 'Redken'] },
+                    {
+                        account: '<img src=x onerror=alert(1)>',
+                        offers: 1,
+                        offerNames: ['Cole Haan']
+                    }
+                ]
+            }
+        };
 
-            expect(config.addButtonSelector).toBe(
-                'mds-icon[type="ico_add_circle"][data-cy="commerce-tile-button"]'
-            );
-            expect(config.accountSelector).toBe('mds-select[id="select-credit-card-account"]');
-            expect(config.minDelay).toBe(300);
-            expect(config.maxDelay).toBe(1300);
+        test('lists offers added per account and notifies once', () => {
+            const listener = loadPopup();
+
+            listener(completed);
+
+            expect($('totalOffers').textContent).toBe('3');
+            expect($('totalTime').textContent).toBe('1m 5s');
+            expect($('statsBreakdown').textContent).toContain('Pandora, Redken');
+            expect(chrome.notifications.create).toHaveBeenCalledTimes(1);
         });
 
-        test('should generate random delay within range', () => {
-            const minDelay = 300;
-            const maxDelay = 1300;
-            const getRandomDelay = () => Math.random() * (maxDelay - minDelay) + minDelay;
+        test('renders account names from the page as text, never as HTML', () => {
+            const listener = loadPopup();
 
-            const delay = getRandomDelay();
-            expect(delay).toBeGreaterThanOrEqual(minDelay);
-            expect(delay).toBeLessThanOrEqual(maxDelay);
-        });
-    });
+            listener(completed);
 
-    describe('Chrome API Integration', () => {
-        test('should call chrome.tabs.query when run button is clicked', () => {
-            chrome.tabs.query.mockImplementation((query, callback) => {
-                callback([{ id: 123 }]);
-            });
-
-            chrome.scripting.executeScript.mockResolvedValue();
-
-            // Simulate button click handler
-            chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
-                if (tabs.length > 0) {
-                    chrome.scripting.executeScript({
-                        target: { tabId: tabs[0].id },
-                        func: () => {} // Mock function
-                    });
-                }
-            });
-
-            expect(chrome.tabs.query).toHaveBeenCalledWith(
-                { active: true, currentWindow: true },
-                expect.any(Function)
-            );
+            expect($('statsBreakdown').querySelector('img')).toBeNull();
+            expect($('statsBreakdown').textContent).toContain('<img src=x onerror=alert(1)>');
         });
 
-        test('should handle chrome.tabs.sendMessage for pause/resume', () => {
-            chrome.tabs.query.mockImplementation((query, callback) => {
-                callback([{ id: 123 }]);
-            });
+        test('a completion restored from storage shows the summary without re-notifying', () => {
+            loadPopup({ chaseOfferStatus: completed });
 
-            // Simulate pause button click
-            chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
-                if (tabs.length > 0) {
-                    chrome.tabs.sendMessage(tabs[0].id, {
-                        action: 'pause'
-                    });
-                }
-            });
-
-            expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(123, {
-                action: 'pause'
-            });
+            expect(isShown($('statsContainer'))).toBe(true);
+            expect(chrome.notifications.create).not.toHaveBeenCalled();
         });
     });
 });

@@ -2,6 +2,14 @@
 
 Functional changes only — full commit-level detail lives in `git log`. Versions use [CalVer](https://calver.org) (`YYYY.M.D`, with a trailing `.N` for same-day releases) instead of semver, since compatibility here is really "does this still work against Chase's current site," not an API contract.
 
+## 2026.10.12.2
+
+- 🐛 **Reopening the popup mid-run now actually shows progress**: the progress bar and Pause button stayed hidden after reopening, because only the last message was restored and most messages never switched them on
+- 🐛 Reopening the popup while paused now resumes on the first click, instead of sending a second pause
+- 🐛 Pausing in the first second of a run no longer starts a second, parallel automation loop, which could double-click offers or skip a card
+- 🔒 Account names from the Chase page are shown as plain text in the summary, never interpreted as HTML
+- 🧪 Tests now run the real `popup.js` against a fake Chase page with the current markup. The old tests only checked their own copies of selectors, so they kept passing after Chase redesigns broke the extension
+
 ## 2026.10.12.1
 
 - 🐛 **Adds offers from the new "Recommended offers" row**: Chase added a carousel above "Explore more offers" whose tiles use different markup (`data-cy="offer"` with a `data-testid="offer-accent-add"` "+" icon), so the extension skipped them entirely. It now clicks those too, and pages through the row with its right arrow, since only 5 of ~20 offers are on the page at a time

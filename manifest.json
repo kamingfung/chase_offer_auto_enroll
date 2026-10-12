@@ -1,8 +1,8 @@
 {
     "manifest_version": 3,
-    "name": "Simple Chase Offer Runner",
-    "version": "2026.10.12.2",
-    "description": "Click the button in the popup to run the Chase offer script once on the current page.",
+    "name": "Chase Offer Adder",
+    "version": "2026.10.12.3",
+    "description": "Automatically adds available Chase Offers to your cards from the Chase Offers page.",
     "permissions": ["activeTab", "scripting", "notifications", "storage"],
     "action": {
         "default_popup": "popup.html",

@@ -1,27 +1,26 @@
 /* Chase Offer Adder - Modern UI Styles */
 
-/* Import Google Fonts */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+/* System font stack only: the popup makes no network requests. */
 
 /* Root Variables */
 :root {
     /* Colorblind Safe Palette (IBM/Wong) */
-    --primary-color: #0077BB;
+    --primary-color: #0077bb;
     /* Blue - Distinct */
-    --primary-variant: #005FA3;
+    --primary-variant: #005fa3;
     /* Darker Blue */
-    --secondary-color: #EE7733;
+    --secondary-color: #ee7733;
     /* Orange - High Contrast vs Blue */
-    --background-color: #FAFAFA;
-    --surface-color: #FFFFFF;
-    --error-color: #CC3311;
+    --background-color: #fafafa;
+    --surface-color: #ffffff;
+    --error-color: #cc3311;
     /* Red/Vermilion - Distinct from Teal */
     --success-color: #009988;
     /* Teal - Distinct from Red */
-    --warning-color: #EE3377;
+    --warning-color: #ee3377;
     /* Magenta - Distinct */
 
-    --on-primary: #FFFFFF;
+    --on-primary: #ffffff;
     --on-surface: #000000;
     --text-primary: rgba(0, 0, 0, 0.9);
     --text-secondary: rgba(0, 0, 0, 0.7);
@@ -40,7 +39,7 @@
 }
 
 body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     width: 320px;
     padding: 0;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -78,15 +77,13 @@ body {
     padding: 20px;
 }
 
-
-
 /* Material Card */
 .card {
     background: var(--surface-color);
     border-radius: 8px;
     box-shadow: var(--shadow-1);
     padding: 16px;
-    transition: box-shadow 0.3s cubic-bezier(.25, .8, .25, 1);
+    transition: box-shadow 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
 .card:hover {
@@ -193,7 +190,7 @@ button {
     border-radius: 4px;
     padding: 0 16px;
     height: 36px;
-    font-family: 'Roboto', sans-serif;
+    font-family: inherit;
     font-size: 14px;
     font-weight: 500;
     text-transform: uppercase;
@@ -218,7 +215,7 @@ button:active {
 
 /* Ripple effect */
 button::after {
-    content: "";
+    content: '';
     background: rgba(255, 255, 255, 0.3);
     display: block;
     position: absolute;

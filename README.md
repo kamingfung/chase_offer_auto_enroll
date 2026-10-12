@@ -159,7 +159,7 @@ While it runs:
 ## ❓ FAQ
 
 **Q: Is this safe to use?**
-A: Yes, the extension only interacts with Chase's website and doesn't collect personal information.
+A: Yes. The extension refuses to run on any site other than Chase and makes no network requests of its own, so nothing is sent anywhere. The only thing it saves is the last run's progress and summary, kept locally in your Chrome profile.
 
 **Q: Does this work with multiple accounts?**
 A: Yes, it automatically detects and processes all your credit card accounts.
@@ -209,7 +209,7 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ---
 
-**Version:** 2026.10.12.2
+**Version:** 2026.10.12.3
 **Last Updated:** 2026-10-12
 
 See [CHANGELOG.md](CHANGELOG.md) for release history, or [TECHNICAL.md](TECHNICAL.md) for detailed technical changes.

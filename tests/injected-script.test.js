@@ -2,14 +2,21 @@
  * @jest-environment jsdom
  */
 
-const { loadPopup, clickRunAndGetInjectedScript, sentMessages } = require('./helpers');
+const {
+    setPageLocation,
+    loadPopup,
+    clickRunAndGetInjectedScript,
+    sentMessages
+} = require('./helpers');
 
 /**
  * A fake Chase Offers page shaped like the October 2026 markup: a "Recommended offers"
  * carousel that shows a page at a time, an offer grid, and an account picker. Clicking
  * an offer marks it added, like the real page. Records every offer click in `clicks`.
+ * `redirectOnSwitch` mimics Chase bouncing to the dashboard overview after a switch.
+ * Each account may carry `optionAttributes` to put on its picker option (e.g. an id).
  */
-function buildChasePage({ accounts, picker = 'sheet' }) {
+function buildChasePage({ accounts, picker = 'sheet', redirectOnSwitch = false }) {
     const clicks = [];
     const added = new Set(accounts.flatMap(a => a.grid.filter(o => o.added).map(o => o.name)));
     let accountIndex = 0;
@@ -78,6 +85,7 @@ function buildChasePage({ accounts, picker = 'sheet' }) {
         document.getElementById('accountSelectorSheet')?.remove();
         document.getElementById('menu')?.remove();
         render();
+        if (redirectOnSwitch) window.location.hash = '#/dashboard/overview';
     }
 
     pickerEl.addEventListener('click', () => {
@@ -105,13 +113,16 @@ function buildChasePage({ accounts, picker = 'sheet' }) {
                 item.setAttribute('role', 'option');
                 item.textContent = account.name;
             }
+            for (const [name, value] of Object.entries(account.optionAttributes || {})) {
+                item.setAttribute(name, value);
+            }
             item.addEventListener('click', () => selectAccount(i));
             list.append(item);
         });
     });
 
     render();
-    return { clicks };
+    return { clicks, render };
 }
 
 const twoCards = [
@@ -154,6 +165,7 @@ describe('Injected automation script', () => {
         });
         Element.prototype.scrollIntoView = jest.fn();
         window.scrollTo = jest.fn();
+        setPageLocation();
     });
 
     afterEach(() => {
@@ -219,5 +231,115 @@ describe('Injected automation script', () => {
         expect(page.clicks).toEqual(['Pandora', 'Warby Parker', 'Cole Haan', 'Redken', 'Blueland']);
         // A second loop would run its own retries and announce an extra account switch
         expect(sentMessages('switching_account')).toHaveLength(2);
+    });
+
+    describe('guards', () => {
+        test('refuses to run on a non-Chase page', async () => {
+            setPageLocation('chase.com.evil.example');
+            const { page } = startRun({ accounts: twoCards });
+            await jest.advanceTimersByTimeAsync(10000);
+
+            expect(page.clicks).toEqual([]);
+            expect(sentMessages('click_error')[0].message).toBe('This page is not a Chase page.');
+            expect(chrome.storage.local.set).not.toHaveBeenCalled();
+        });
+
+        test('a second ADD OFFERS click while running adds nothing extra', async () => {
+            const { page } = startRun({ accounts: twoCards });
+            await jest.advanceTimersByTimeAsync(1200);
+
+            clickRunAndGetInjectedScript()();
+            await jest.advanceTimersByTimeAsync(120000);
+
+            expect(sentMessages('already_running')).toHaveLength(1);
+            expect(page.clicks).toEqual([
+                'Pandora',
+                'Warby Parker',
+                'Cole Haan',
+                'Redken',
+                'Blueland'
+            ]);
+            expect(sentMessages('script_completed')).toHaveLength(1);
+        });
+
+        test('can run again after a run completes', async () => {
+            startRun({ accounts: twoCards });
+            await jest.advanceTimersByTimeAsync(120000);
+
+            clickRunAndGetInjectedScript()();
+            await jest.advanceTimersByTimeAsync(60000);
+
+            expect(sentMessages('already_running')).toHaveLength(0);
+            expect(sentMessages('script_started')).toHaveLength(2);
+        });
+    });
+
+    describe('page navigation', () => {
+        test('goes back when a click landed on an offer detail page', async () => {
+            setPageLocation('secure.chase.com', '#/dashboard/merchantOffers/offer-hub/detail');
+            jest.spyOn(window.history, 'back').mockImplementation(() => {
+                window.location.hash = '#/dashboard/merchantOffers/offer-hub';
+            });
+
+            const { page } = startRun({ accounts: twoCards });
+            await jest.advanceTimersByTimeAsync(120000);
+
+            expect(window.history.back).toHaveBeenCalledTimes(1);
+            expect(page.clicks).toHaveLength(5);
+        });
+
+        test('keeps waiting while the page is loading instead of moving to the next card', async () => {
+            const accounts = [
+                { name: 'Sapphire...1234', grid: [] },
+                { name: 'Freedom...5678', grid: [{ name: 'Blueland' }] }
+            ];
+            const { page } = startRun({ accounts });
+            const skeleton = document.createElement('div');
+            skeleton.setAttribute('data-testid', 'skeleton');
+            document.body.append(skeleton);
+
+            // Five retries would normally give up after ~10s
+            await jest.advanceTimersByTimeAsync(30000);
+            expect(sentMessages('switching_account')).toHaveLength(0);
+
+            accounts[0].grid.push({ name: 'Cole Haan' });
+            skeleton.remove();
+            page.render();
+            await jest.advanceTimersByTimeAsync(120000);
+
+            expect(page.clicks).toEqual(['Cole Haan', 'Blueland']);
+        });
+
+        test.each([
+            [
+                'the option id attribute',
+                'combobox',
+                { 'data-account-id': '987654321' },
+                '/dashboard/merchantOffers/offer-hub?accountId=987654321'
+            ],
+            [
+                'the plain offer hub when the option has no id',
+                'sheet',
+                {},
+                '/dashboard/merchantOffers/offer-hub'
+            ]
+        ])(
+            'recovers from the overview redirect using %s, never digits in its text',
+            async (_label, picker, optionAttributes, expectedHash) => {
+                const accounts = [
+                    { name: 'Sapphire 4111222233', grid: [] },
+                    {
+                        name: 'Freedom 5500111122',
+                        grid: [{ name: 'Blueland' }],
+                        optionAttributes
+                    }
+                ];
+                const { page } = startRun({ accounts, picker, redirectOnSwitch: true });
+                await jest.advanceTimersByTimeAsync(120000);
+
+                expect(window.location.hash).toBe(expectedHash);
+                expect(page.clicks).toEqual(['Blueland']);
+            }
+        );
     });
 });

@@ -22,10 +22,10 @@ chase-offer-adder/
 ├── popup.js               # Main extension logic
 ├── eslint.config.cjs      # ESLint configuration
 ├── package.json           # Node.js dependencies and scripts
-├── CLAUDE.md              # Project instructions for Claude Code
 ├── images/                # Extension icons and screenshots
 ├── tests/                 # Jest test suite
 │   ├── setup.js           # Chrome API mocks
+│   ├── helpers.js         # Loads the real popup.js/popup.html into jsdom
 │   ├── popup.test.js      # Popup logic tests
 │   └── injected-script.test.js  # Automation logic tests
 └── node_modules/          # Dependencies
@@ -35,7 +35,7 @@ chase-offer-adder/
 
 ### Script Injection Process
 
-1. **Script Injection**: Popup injects automation script into active Chase tab using `chrome.scripting.executeScript`
+1. **Script Injection**: Popup checks that the active tab is an HTTPS `chase.com` page (using the URL that `activeTab` exposes after the click) and only then injects the automation script with `chrome.scripting.executeScript`. The injected script re-checks `location.hostname` and refuses to run if a copy is already running on the page (`window.__chaseOfferAdderRunning`).
 2. **Multi-Section Detection**: Automatically searches for buttons in both carousel (featured offers) and grid (all offers) sections
 3. **Tab Discovery**: Automatically detects and cycles through page tabs if present
 4. **Button Detection**: Script scans for `[data-cy="commerce-tile-button"]` elements (SVG icons) across all page sections
@@ -133,12 +133,16 @@ The extension uses Chrome runtime messaging for popup ↔ injected script commun
 **From Injected Script to Popup:**
 
 - `script_started` - Automation begins
+- `already_running` - A copy of the script is already running on this page; the new copy exits
+- `buttons_counted` - Initial count of unique clickable offers (`total`)
+- `offer_clicked` - An offer was added (`current`, `total`)
 - `script_paused` - Process paused
 - `script_resumed` - Process resumed
-- `tab_switched` - Switched to new tab (New, All offers, etc.)
+- `switching_account` - Finished current account, opening the account dropdown
 - `account_switched` - Switched to new account
+- `script_completed` - All accounts processed; carries `stats` (`totalOffersAdded`, `accountsProcessed`, `timeTaken`, and `breakdown` with per-account `offerNames`)
 - `no_buttons_found` - No offers available
-- `click_error` - Error during button clicking
+- `click_error` - Error during button clicking, or the page is not a Chase page
 
 **From Popup to Injected Script:**
 
@@ -204,11 +208,13 @@ Optional: install [`just`](https://github.com/casey/just) (`brew install just`) 
 
 ### Test Files
 
-**tests/helpers.js** - `loadPopup(stored)` renders `popup.html`, optionally pre-seeds `chrome.storage` (to simulate reopening the popup mid-run), and loads `popup.js`. `clickRunAndGetInjectedScript()` clicks ADD OFFERS and returns the function handed to `chrome.scripting.executeScript`.
+**tests/setup.js** - Chrome API mocks (`runtime`, `tabs`, `scripting`, `storage.local`, `notifications`) and a writable `window.location` stub that tests change with `setPageLocation(hostname, hash)`.
 
-**tests/popup.test.js** - Popup behaviour: injecting into the active tab, Pause/Resume messages, the progress bar (including clamping), restoring progress and pause state after reopening, and the completion summary (merchant names, account names rendered as text, one notification).
+**tests/helpers.js** - `loadPopup(stored, { tabUrl })` renders `popup.html`, optionally pre-seeds `chrome.storage` (to simulate reopening the popup mid-run), points the active tab at `tabUrl`, and loads `popup.js`. `clickRunAndGetInjectedScript()` clicks ADD OFFERS and returns the function handed to `chrome.scripting.executeScript`.
 
-**tests/injected-script.test.js** - Runs the real injected script against a fake Chase Offers page shaped like the October 2026 markup: a paging "Recommended offers" carousel, an offer grid with some offers already added, and two accounts behind the account sheet. Covers adding every un-added offer across pages and accounts, the summary per account, the pre-October combobox fallback, progress persistence, and Pause/Resume (including pausing during startup).
+**tests/popup.test.js** - Popup behaviour: injecting only into HTTPS `chase.com` tabs (refusing look-alike, plain-HTTP, and non-Chase hosts), injection errors, the already-running warning, Pause/Resume messages, the progress bar (including clamping), restoring progress and pause state after reopening, and the completion summary (merchant names, account names rendered as text, cleared between runs, one notification).
+
+**tests/injected-script.test.js** - Runs the real injected script against a fake Chase Offers page shaped like the October 2026 markup: a paging "Recommended offers" carousel, an offer grid with some offers already added, and two accounts behind the account sheet. Covers adding every un-added offer across pages and accounts, the summary per account, the pre-October combobox fallback, progress persistence, Pause/Resume (including pausing during startup), the host and double-run guards, detail-page back navigation, waiting while the page loads, and overview-redirect recovery that reads the account id only from option attributes.
 
 When Chase changes its markup, update the fake page in `buildChasePage()` to match the new saved page in `reference/`, then fix `popup.js` until the tests pass again.
 
@@ -256,8 +262,10 @@ if (!buttonToClick) {
 
 Required permissions in `manifest.json`:
 
-- `activeTab`: Required for content script injection
+- `activeTab`: Grants temporary access to the active tab (including its URL) after the user clicks the extension. No host permissions are requested; the popup checks that the URL is an HTTPS `chase.com` host before injecting.
 - `scripting`: Required for `executeScript` API
+- `notifications`: Completion notification
+- `storage`: Saves the last run's status, progress, and summary locally (`chrome.storage.local`) so reopening the popup mid-run restores it
 
 ### Selector Dependencies
 
@@ -273,6 +281,7 @@ Extension relies on specific Chase selectors that may break with website updates
 - **Account selector trigger**: `[data-testid="account-selector-trigger"]` (a `<button aria-haspopup="dialog">`; fallback `[data-testid="select-credit-card-account"]` for the pre-Oct-2026 combobox)
 - **Account display text** (current account name): the trigger button's `textContent` (fallback: `[data-mds-select-value-text="true"]` inside the old combobox)
 - **Account sheet options**: `#accountSelectorSheet .accountSelectorListItem` (fallback: `ul[role="listbox"]#menu li[role="option"]`); label text in `.accountSelectorListLabel`
+- **Account id for redirect recovery**: read only from the option's attributes (`value`, `data-value`, `data-account-id`, `id`, then any other attribute), never from its text, so masked card digits can't end up in the URL
 
 **Notes**:
 
@@ -336,11 +345,11 @@ Before lint-staged runs, the hook also scans staged changes for secrets with [gi
 {
     "manifest_version": 3,
     "name": "Chase Offer Adder",
-    "version": "1.0.0",
-    "permissions": ["activeTab", "scripting"],
+    "version": "2026.10.12.3",
+    "permissions": ["activeTab", "scripting", "notifications", "storage"],
     "action": {
         "default_popup": "popup.html",
-        "default_icon": "images/icon128.png"
+        "default_icon": { "128": "images/icon128.png" }
     },
     "icons": {
         "128": "images/icon128.png"
@@ -382,15 +391,17 @@ Before lint-staged runs, the hook also scans staged changes for secrets with [gi
 
 ### Data Privacy
 
-- No personal data collection or storage
-- No external network requests
+- Nothing leaves the browser. The only data kept is the last run's status and summary (offer names and masked card names such as `Sapphire...1234`) in `chrome.storage.local`, which the next run overwrites
+- No external network requests: the popup bundles no remote fonts or scripts
+- Only runs on HTTPS `chase.com` hosts (checked in the popup and again inside the injected script)
 - Only interacts with Chase's legitimate DOM elements
 
 ### Content Security Policy
 
 - Follows Chrome extension security best practices
 - Uses content script injection instead of inline scripts
-- Validates all DOM interactions
+- Text read from the Chase page (account names) is rendered in the popup with `textContent`, never `innerHTML`
+- Only one copy of the automation runs per page; re-clicking "ADD OFFERS" reports `already_running`
 
 ## Debugging
 
@@ -456,26 +467,7 @@ Run the same checks locally with `just ci` (requires `gitleaks`; see [Pre-commit
 
 ## Recent Updates
 
-### Version 1.1 (Current)
-
-**Enhanced Retry Mechanism:**
-
-- Increased retry attempts from 3 to 5 for better reliability
-- Increased retry delay from 1 second to 2 seconds
-- Added smart loading detection (skeleton loaders, aria-busy states)
-- Automatically resets retry count when page is actively loading
-
-**Smart Button Detection:**
-
-- Automatic scrolling for off-viewport buttons
-- Section detection (carousel vs grid)
-- Better visibility checking
-
-**Improved Timing:**
-
-- Tab switch delay: 1.5 seconds (optimized for content loading)
-- Account switch delay: 2.5 seconds (increased for account transitions)
-- Random action delays: 300-1300ms (natural behavior simulation)
+See [CHANGELOG.md](CHANGELOG.md) for release history.
 
 ## Future Improvements
 

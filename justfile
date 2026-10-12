@@ -41,11 +41,11 @@ lint-fix:
 
 # Format all files with Prettier
 format:
-    npx prettier --write "*.js" "*.json" "*.html" "scripts/**/*.js" "tests/**/*.js"
+    npx prettier --write "*.js" "*.json" "*.html" "*.css" "scripts/**/*.js" "tests/**/*.js"
 
 # Check formatting without making changes
 format-check:
-    npx prettier --check "*.js" "*.json" "*.html" "scripts/**/*.js" "tests/**/*.js"
+    npx prettier --check "*.js" "*.json" "*.html" "*.css" "scripts/**/*.js" "tests/**/*.js"
 
 # ─── Security ─────────────────────────────────────────────────────────────────
 

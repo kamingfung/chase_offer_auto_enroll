@@ -28,6 +28,41 @@ describe('Popup', () => {
         });
     });
 
+    test.each([
+        ['a non-Chase site', 'https://example.com/'],
+        ['plain HTTP Chase', 'http://secure.chase.com/web/auth/dashboard'],
+        ['a look-alike host', 'https://secure.chase.com.evil.example/'],
+        ['a host ending in chase.com', 'https://notchase.com/'],
+        ['a tab with no URL', undefined]
+    ])('refuses to inject into %s', (_label, tabUrl) => {
+        loadPopup({}, { tabUrl });
+
+        clickRunAndGetInjectedScript();
+
+        expect(chrome.scripting.executeScript).not.toHaveBeenCalled();
+        expect($('status').textContent).toBe('Open your Chase Offers page first.');
+    });
+
+    test('shows an injection failure', async () => {
+        loadPopup();
+        chrome.scripting.executeScript.mockRejectedValue(new Error('Cannot access this page'));
+
+        clickRunAndGetInjectedScript();
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect($('status').textContent).toBe('Injection Error: Cannot access this page');
+    });
+
+    test('a second ADD OFFERS click warns and keeps the running copy paused state', () => {
+        const listener = loadPopup({ chaseOfferStatus: { status: 'script_paused' } });
+
+        listener({ status: 'already_running' });
+
+        expect($('status').textContent).toBe('Automation is already running on this page.');
+        expect($('pauseButton').textContent).toBe('Resume');
+    });
+
     test('Pause and Resume send the matching action to the tab', () => {
         loadPopup();
 
@@ -111,6 +146,15 @@ describe('Popup', () => {
 
             expect($('statsBreakdown').querySelector('img')).toBeNull();
             expect($('statsBreakdown').textContent).toContain('<img src=x onerror=alert(1)>');
+        });
+
+        test('clears the previous breakdown before rendering a new one', () => {
+            const listener = loadPopup();
+
+            listener(completed);
+            listener({ ...completed, stats: { ...completed.stats, breakdown: [] } });
+
+            expect($('statsBreakdown').textContent).toBe('');
         });
 
         test('a completion restored from storage shows the summary without re-notifying', () => {

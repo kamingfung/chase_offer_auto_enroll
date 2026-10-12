@@ -2,6 +2,19 @@
 
 Functional changes only — full commit-level detail lives in `git log`. Versions use [CalVer](https://calver.org) (`YYYY.M.D`, with a trailing `.N` for same-day releases) instead of semver, since compatibility here is really "does this still work against Chase's current site," not an API contract.
 
+## 2026.10.12.3
+
+Merges the September security hardening branch into the current code.
+
+- 🔒 **Only runs on Chase**: the popup refuses to inject unless the active tab is an HTTPS `chase.com` page, and the injected script checks the host again before doing anything. Look-alike hosts (e.g. `chase.com.evil.example`) and plain HTTP are refused
+- 🔒 **No network requests**: removed the Google Fonts import, so the popup loads nothing from outside the extension
+- 🔒 The account id used to recover from Chase's "bounced to dashboard" redirect is read only from the option's attributes, never its text, so masked card digits can't end up in the page URL
+- 🐛 Clicking ADD OFFERS while a run is in progress no longer starts a second, competing run; the popup says the automation is already running and keeps its Pause/Resume state
+- 🐛 The completion summary clears the previous run's breakdown before showing the new one
+- 🐛 Counting and clicking now agree on which element is the offer's button
+- 🔧 Extension renamed in Chrome from "Simple Chase Offer Runner" to "Chase Offer Adder"
+- 🔧 CI actions pinned to exact commit hashes, and dev-dependency security advisories updated (`npm audit`: 45 → 37 findings, none in the shipped extension)
+
 ## 2026.10.12.2
 
 - 🐛 **Reopening the popup mid-run now actually shows progress**: the progress bar and Pause button stayed hidden after reopening, because only the last message was restored and most messages never switched them on

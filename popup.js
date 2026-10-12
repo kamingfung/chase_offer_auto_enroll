@@ -53,18 +53,22 @@ function displayStats(stats) {
     document.getElementById('totalTime').textContent = stats.timeTaken;
 
     const breakdownContainer = document.getElementById('statsBreakdown');
+    breakdownContainer.replaceChildren();
     if (stats.breakdown && stats.breakdown.length > 0) {
-        breakdownContainer.innerHTML = '<div class="breakdown-title">By Account:</div>';
+        const title = document.createElement('div');
+        title.className = 'breakdown-title';
+        title.textContent = 'By Account:';
+        breakdownContainer.appendChild(title);
         stats.breakdown.forEach(item => {
             const div = document.createElement('div');
             div.className = 'breakdown-item';
             // Account names come from the Chase page, so set them as text, never as HTML
             const accountSpan = document.createElement('span');
             accountSpan.className = 'breakdown-account';
-            accountSpan.textContent = item.account;
+            accountSpan.textContent = String(item.account);
             const countSpan = document.createElement('span');
             countSpan.className = 'breakdown-count';
-            countSpan.textContent = `${item.offers} offers`;
+            countSpan.textContent = `${Number(item.offers) || 0} offers`;
             div.append(accountSpan, countSpan);
             breakdownContainer.appendChild(div);
 
@@ -80,6 +84,22 @@ function displayStats(stats) {
     statsContainer.style.display = 'block';
 }
 
+// Only inject into Chase's web app. activeTab exposes tab.url after the user
+// clicks the extension, so we can check it before injecting. Any HTTPS host on
+// chase.com is accepted because Chase serves the dashboard from several
+// secure*.chase.com hostnames.
+function isAllowedChaseUrl(url) {
+    try {
+        const parsed = new URL(url);
+        const host = parsed.hostname;
+        return (
+            parsed.protocol === 'https:' && (host === 'chase.com' || host.endsWith('.chase.com'))
+        );
+    } catch {
+        return false;
+    }
+}
+
 // Helper function to show Chrome notification
 function showNotification(stats) {
     chrome.notifications.create({
@@ -93,6 +113,8 @@ function showNotification(stats) {
 
 // Applies a status update from the injected script, whether it just arrived live
 // or was restored from storage after the popup was closed and reopened mid-run.
+const SAVED_STATUS_KEYS = ['chaseOfferStatus', 'chaseOfferProgress'];
+
 const RUNNING_STATUSES = [
     'script_started',
     'buttons_counted',
@@ -137,6 +159,15 @@ function applyStatusUpdate(request) {
         updateStatus(request.message, 'status-running');
     } else if (request.status === 'account_switched') {
         updateStatus(request.message, 'status-running');
+    } else if (request.status === 'already_running') {
+        // The new copy exited without running; show the running copy's saved state,
+        // which keeps Pause/Resume in sync if that run is currently paused
+        chrome.storage.local.get(SAVED_STATUS_KEYS, result => {
+            restoreSavedStatus(result);
+            pauseButton.style.display = 'inline-block';
+            progressContainer.style.display = 'block';
+            updateStatus('Automation is already running on this page.', 'status-warning');
+        });
     } else if (request.status === 'script_completed') {
         const stats = request.stats || {
             totalOffersAdded: request.totalOffersAdded || 0,
@@ -197,6 +228,26 @@ runButton.addEventListener('click', () => {
     // --- Injected Script Definition ---
     // This function gets sent to the Chase page to run
     const scriptToExecute = () => {
+        // Defense in depth: the popup already checks the tab URL, but never run
+        // the automation (which clicks around and reads the DOM) on a non-Chase page.
+        // Both guard messages bypass reportStatus so they don't overwrite a running copy's saved state.
+        if (!/(^|\.)chase\.com$/.test(window.location.hostname)) {
+            chrome.runtime.sendMessage({
+                status: 'click_error',
+                message: 'This page is not a Chase page.'
+            });
+            return;
+        }
+
+        // Each click of "ADD OFFERS" injects a fresh copy of this function. Without
+        // a guard, two copies would both register message listeners and both click
+        // offers, doubling counts and racing each other.
+        if (window.__chaseOfferAdderRunning) {
+            chrome.runtime.sendMessage({ status: 'already_running' });
+            return;
+        }
+        window.__chaseOfferAdderRunning = true;
+
         // Persist every status update so the popup can restore its UI after being closed/reopened
         const reportStatus = payload => {
             chrome.runtime.sendMessage(payload);
@@ -353,28 +404,26 @@ runButton.addEventListener('click', () => {
         function getAccountIdFromOption(option) {
             if (!option) return null;
 
-            // 1. Try specific attributes first
+            // Only look at attributes on the option element itself. Scanning the
+            // option's full HTML (including its text) could pick up unrelated
+            // numbers, such as a card's masked digits, and put them in the URL.
+            const idPattern = /(?<!\d)\d{8,15}(?!\d)/;
             const attrs = ['value', 'data-value', 'data-account-id', 'id'];
             for (const attr of attrs) {
                 const val = option.getAttribute(attr);
                 if (val) {
-                    const match = val.match(/\d{8,15}/);
+                    const match = val.match(idPattern);
                     if (match) return match[0];
                 }
             }
 
-            // 2. Try matching in outerHTML tag definition
-            const html = option.outerHTML;
-            const startTagMatch = html.match(/^<[^>]+>/);
-            if (startTagMatch) {
-                const startTag = startTagMatch[0];
-                const match = startTag.match(/\d{8,15}/);
+            for (const { name, value } of Array.from(option.attributes)) {
+                if (attrs.includes(name)) continue;
+                const match = value.match(idPattern);
                 if (match) return match[0];
             }
 
-            // 3. Fallback to any 8-15 digit number in the entire HTML
-            const generalMatch = html.match(/\d{8,15}/);
-            if (generalMatch) return generalMatch[0];
+            return null;
         }
 
         const safeClick = element => {
@@ -409,9 +458,10 @@ runButton.addEventListener('click', () => {
                     return;
                 }
 
-                const parentButton = button.closest('[role="button"]');
+                // Use the same ancestor lookup as addNextItem so the count and the
+                // click loop agree on what is clickable.
+                const parentButton = button.closest('button, [role="button"]') || button;
                 const isClickable =
-                    parentButton &&
                     !parentButton.disabled &&
                     window.getComputedStyle(parentButton).display !== 'none';
 
@@ -466,6 +516,8 @@ runButton.addEventListener('click', () => {
                     offerNames: currentAccountOfferNames
                 });
             }
+
+            window.__chaseOfferAdderRunning = false;
 
             const durationMs = Date.now() - scriptStartTime;
             const minutes = Math.floor(durationMs / 60000);
@@ -646,9 +698,8 @@ runButton.addEventListener('click', () => {
                     return false;
                 }
 
-                const parentButton = button.closest('button') || button;
+                const parentButton = button.closest('button, [role="button"]') || button;
                 const isClickable =
-                    parentButton &&
                     !parentButton.disabled &&
                     window.getComputedStyle(parentButton).display !== 'none';
 
@@ -765,7 +816,8 @@ runButton.addEventListener('click', () => {
                 currentAccountOfferNames.push(getOfferName(buttonToClick) || 'Unknown offer');
 
                 // Click the button wrapper or SVG directly
-                const parentButton = buttonToClick.closest('button') || buttonToClick;
+                const parentButton =
+                    buttonToClick.closest('button, [role="button"]') || buttonToClick;
                 safeClick(parentButton);
 
                 buttonsClickedInCurrentView++;
@@ -835,9 +887,17 @@ runButton.addEventListener('click', () => {
     chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
         if (tabs.length > 0) {
             const targetTabId = tabs[0].id;
+
+            if (!isAllowedChaseUrl(tabs[0].url)) {
+                console.warn('Popup: Active tab is not a Chase page, refusing to inject.');
+                updateStatus('Open your Chase Offers page first.', 'status-warning');
+                pauseButton.style.display = 'none';
+                showDog('header');
+                return;
+            }
+
             console.log(`Popup: Attempting to inject script into tab: ${targetTabId}`);
-            statusDiv.textContent = 'Status: Running...';
-            statusDiv.style.color = '#0000FF'; // Blue color for running status
+            updateStatus('Running...', 'status-running');
 
             // Execute the script on the active tab
             chrome.scripting
@@ -865,7 +925,7 @@ runButton.addEventListener('click', () => {
 
 // Restore the last known status when the popup is opened/reopened, so progress
 // and pause state survive the popup being closed mid-run.
-chrome.storage.local.get(['chaseOfferStatus', 'chaseOfferProgress'], result => {
+function restoreSavedStatus(result) {
     const { chaseOfferStatus, chaseOfferProgress } = result || {};
     if (!chaseOfferStatus) {
         updateStatus('Ready', 'status-idle');
@@ -875,4 +935,6 @@ chrome.storage.local.get(['chaseOfferStatus', 'chaseOfferProgress'], result => {
     if (chaseOfferProgress && RUNNING_STATUSES.includes(chaseOfferStatus.status)) {
         updateProgress(chaseOfferProgress.current, chaseOfferProgress.total);
     }
-});
+}
+
+chrome.storage.local.get(SAVED_STATUS_KEYS, restoreSavedStatus);

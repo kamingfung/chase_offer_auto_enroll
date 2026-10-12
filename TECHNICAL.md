@@ -48,6 +48,78 @@ chase-offer-adder/
 11. **Account Switching**: Automatically cycles through accounts via `[data-testid="account-selector-trigger"]` → `#accountSelectorSheet .accountSelectorListItem`
 12. **Navigation**: Uses `window.history.back()` between offers
 
+### Detailed Flow Chart
+
+```mermaid
+graph TD
+    Start([Start Extension]) --> Inject[Inject Script on Tab]
+    Inject --> Init[Init state: currentAccountIndex = selected option or 0]
+    Init --> ScrollTop[Scroll to top, wait 1s]
+    ScrollTop --> CallLoop[Invoke addNextItem]
+
+    subgraph addNextItem [addNextItem Function]
+        CheckPause{Is paused?} -- Yes --> WaitResume[Wait for resume]
+        WaitResume --> CheckPause
+        CheckPause -- No --> CheckDetailHash{URL hash includes<br>'offer-activated' or '/detail'?}
+
+        CheckDetailHash -- Yes --> BackNav[Go back in history:<br>window.history.back]
+        BackNav --> WaitSettle1[Wait 1.5s]
+        WaitSettle1 --> RecurseBack[Recurse addNextItem]
+
+        CheckDetailHash -- No --> FindButtons[Query addButtonSelector:<br>commerce-tile-button + offer-accent-add]
+        FindButtons --> FilterButtons[Filter: check visibility, skip checkmarks/success, skip processed]
+        FilterButtons --> HasButtons{Any buttons left?}
+
+        HasButtons -- Yes --> PickFirst[Pick first button]
+        PickFirst --> ScrollInView[Scroll button to viewport]
+        ScrollInView --> MarkProcessed[Mark offer as processed,<br>record merchant name]
+        MarkProcessed --> ClickButton[safeClick parentButton or SVG]
+        ClickButton --> UpdateStats[Update status & counters]
+        UpdateStats --> WaitSettle2[Wait 1.5s delay]
+        WaitSettle2 --> RecurseNext[Recurse addNextItem]
+
+        HasButtons -- No --> CheckCarousel{Enabled carousel right arrow<br>and pages < 10?}
+        CheckCarousel -- Yes --> ClickArrow[Click arrow, reset retryCount]
+        ClickArrow --> WaitSettle3[Wait 1.5s]
+        WaitSettle3 --> RecurseCarousel[Recurse addNextItem]
+
+        CheckCarousel -- No --> CheckLoading{Page loading?<br>skeletons / aria-busy}
+        CheckLoading -- Yes --> ResetRetry[Reset retryCount = 0]
+        ResetRetry --> WaitRetry[Wait 2s retryDelay]
+        WaitRetry --> RecurseRetry[Recurse addNextItem]
+
+        CheckLoading -- No --> CheckRetryLimit{retryCount < 5?}
+        CheckRetryLimit -- Yes --> IncRetry[Increment retryCount]
+        IncRetry --> WaitRetry
+
+        CheckRetryLimit -- No --> SwitchAcc[Invoke switchToNextAccount]
+    end
+
+    subgraph switchToNextAccount [switchToNextAccount Function]
+        SwitchAcc --> FindTrigger{Account trigger found?}
+        FindTrigger -- No --> Complete[Complete automation]
+        FindTrigger -- Yes --> ClickTrigger[safeClick account trigger]
+        ClickTrigger --> PollOptions[Poll up to ~3s for<br>account sheet rows]
+        PollOptions --> HasNextAcc{nextIndex < options.length?}
+
+        HasNextAcc -- No --> CloseTrigger[safeClick trigger to close]
+        CloseTrigger --> Complete
+
+        HasNextAcc -- Yes --> SelectOption[safeClick next option]
+        SelectOption --> SetPoll[Poll URL hash for 2s every 100ms]
+        SetPoll --> CheckOverview{Has redirected to overview?}
+        CheckOverview -- Yes --> CorrectHash[Set hash back to offers hub<br>with or without accountId]
+        CheckOverview -- No --> KeepWaiting[Keep polling / wait]
+        CorrectHash --> SwitchSettle[Wait 2.5s for account switch]
+        KeepWaiting --> SwitchSettle
+
+        SwitchSettle --> ResetState[Clear processed set,<br>reset counters and carousel pages]
+        ResetState --> RecurseAcc[Recurse addNextItem]
+    end
+
+    Complete --> Notify[Display completed stats & send notification]
+```
+
 ### State Management
 
 - **Pause/Resume**: Controlled via message passing between popup and injected script

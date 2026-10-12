@@ -15,7 +15,7 @@
 ## 📋 Table of Contents
 
 - [Overview](#overview)
-- [Logic Flow Chart](#logic-flow-chart)
+- [What Happens When You Click "Add Offers"](#-what-happens-when-you-click-add-offers)
 - [Features](#features)
 - [Installation](#installation)
 - [How to Use](#how-to-use)
@@ -46,75 +46,29 @@ This Chrome extension automates the tedious process of adding Chase Offers to yo
 5. 📊 **Updates status** in real-time
 6. ⏸️ **Pause/resume** controls for full user control
 
-## 📊 Logic Flow Chart
-
-Here is the logic flow chart for the automation script:
+## 📊 What Happens When You Click "Add Offers"
 
 ```mermaid
-graph TD
-    Start([Start Extension]) --> Inject[Inject Script on Tab]
-    Inject --> Init[Init state: currentAccountIndex = selected option or 0]
-    Init --> ScrollTop[Scroll to top, wait 1s]
-    ScrollTop --> CallLoop[Invoke addNextItem]
-
-    subgraph addNextItem [addNextItem Function]
-        CheckPause{Is paused?} -- Yes --> WaitResume[Wait for resume]
-        WaitResume --> CheckPause
-        CheckPause -- No --> CheckDetailHash{URL hash includes<br>'offer-activated' or '/detail'?}
-
-        CheckDetailHash -- Yes --> BackNav[Go back in history:<br>window.history.back]
-        BackNav --> WaitSettle1[Wait 1.5s]
-        WaitSettle1 --> RecurseBack[Recurse addNextItem]
-
-        CheckDetailHash -- No --> FindButtons[Query all addButtons]
-        FindButtons --> FilterButtons[Filter: check visibility, skip checkmarks/success, skip processed]
-        FilterButtons --> HasButtons{Any buttons left?}
-
-        HasButtons -- Yes --> PickFirst[Pick first button]
-        PickFirst --> ScrollInView[Scroll button to viewport]
-        ScrollInView --> MarkProcessed[Mark offer as processed]
-        MarkProcessed --> ClickButton[safeClick parentButton or SVG]
-        ClickButton --> UpdateStats[Update status & counters]
-        UpdateStats --> WaitSettle2[Wait 1.5s delay]
-        WaitSettle2 --> RecurseNext[Recurse addNextItem]
-
-        HasButtons -- No --> CheckLoading{Page loading?<br>skeletons / aria-busy}
-        CheckLoading -- Yes --> ResetRetry[Reset retryCount = 0]
-        ResetRetry --> WaitRetry[Wait 2s retryDelay]
-        WaitRetry --> RecurseRetry[Recurse addNextItem]
-
-        CheckLoading -- No --> CheckRetryLimit{retryCount < 5?}
-        CheckRetryLimit -- Yes --> IncRetry[Increment retryCount]
-        IncRetry --> WaitRetry
-
-        CheckRetryLimit -- No --> SwitchAcc[Invoke switchToNextAccount]
-    end
-
-    subgraph switchToNextAccount [switchToNextAccount Function]
-        SwitchAcc --> FindCombobox{Combobox found?}
-        FindCombobox -- No --> Complete[Complete automation]
-        FindCombobox -- Yes --> ClickCombo[safeClick combobox]
-        ClickCombo --> WaitMenu[Wait 500ms for dropdown menu]
-        WaitMenu --> QueryOptions[Re-query freshOptionsList options]
-        QueryOptions --> HasNextAcc{nextIndex < options.length?}
-
-        HasNextAcc -- No --> CloseCombo[safeClick combobox to close]
-        CloseCombo --> Complete
-
-        HasNextAcc -- Yes --> SelectOption[safeClick next option]
-        SelectOption --> SetPoll[Poll URL hash for 2s every 100ms]
-        SetPoll --> CheckOverview{Has redirected to overview?}
-        CheckOverview -- Yes --> CorrectHash[Set hash back to offers hub<br>with or without accountId]
-        CheckOverview -- No --> KeepWaiting[Keep polling / wait]
-        CorrectHash --> SwitchSettle[Wait 2.5s for account switch]
-        KeepWaiting --> SwitchSettle
-
-        SwitchSettle --> ResetState[Clear processed set, reset counters]
-        ResetState --> RecurseAcc[Recurse addNextItem]
-    end
-
-    Complete --> Notify[Display completed stats & send notification]
+flowchart TD
+    Start([You open Chase Offers<br>and click ADD OFFERS]) --> Look[The extension looks for offers<br>with a + button]
+    Look --> Found{Any offers you<br>haven't added yet?}
+    Found -->|Yes| Add[It adds the offer<br>to your card]
+    Add --> Progress[The progress bar<br>moves forward]
+    Progress --> Look
+    Found -->|More in the<br>Recommended row| More[It shows the next set of<br>Recommended offers]
+    More --> Look
+    Found -->|No, this card is done| Other{Do you have<br>another card?}
+    Other -->|Yes| Switch[It switches to<br>your next card]
+    Switch --> Look
+    Other -->|No| Done([Done! You see a summary<br>of offers added on each card])
 ```
+
+While it runs:
+
+- **Pause anytime** with the Pause button. Resume picks up where it left off.
+- **Closing the popup is fine.** The extension keeps working, and reopening the popup shows your progress.
+- **Short pauses are normal.** If the page is still loading, the extension waits and tries again.
+- **Offers you already added are skipped**, so running it again is safe.
 
 ## ✨ Features
 

@@ -256,7 +256,7 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ---
 
-**Version:** 2026.10.12
+**Version:** 2026.10.12.1
 **Last Updated:** 2026-10-12
 
 See [CHANGELOG.md](CHANGELOG.md) for release history, or [TECHNICAL.md](TECHNICAL.md) for detailed technical changes.

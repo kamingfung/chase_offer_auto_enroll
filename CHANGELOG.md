@@ -2,6 +2,12 @@
 
 Functional changes only — full commit-level detail lives in `git log`. Versions use [CalVer](https://calver.org) (`YYYY.M.D`, with a trailing `.N` for same-day releases) instead of semver, since compatibility here is really "does this still work against Chase's current site," not an API contract.
 
+## 2026.10.12.1
+
+- 🐛 **Adds offers from the new "Recommended offers" row**: Chase added a carousel above "Explore more offers" whose tiles use different markup (`data-cy="offer"` with a `data-testid="offer-accent-add"` "+" icon), so the extension skipped them entirely. It now clicks those too, and pages through the row with its right arrow, since only 5 of ~20 offers are on the page at a time
+- 🐛 The completion summary now shows merchant names (e.g. "Pandora Jewelry") instead of internal offer ids like `FIGG:1901522`
+- 🐛 Progress bar no longer overflows past 100% when more offers load mid-run
+
 ## 2026.10.12
 
 - 🐛 **Fixed account switching again**: Chase replaced the account combobox/dropdown with a trigger button (`data-testid="account-selector-trigger"`) that opens a bottom sheet (`#accountSelectorSheet`). The old selectors matched nothing, so runs ended after the first account. Now targets the new sheet and its `.accountSelectorListItem` rows, keeps the pre-October selectors as fallbacks, and polls for the sheet to render instead of assuming a fixed 500ms

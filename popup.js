@@ -40,7 +40,8 @@ function updateStatus(message, statusClass) {
 function updateProgress(current, total) {
     if (total === 0) return;
 
-    const percentage = Math.round((current / total) * 100);
+    // Clamped: offers loaded later (carousel pages) can push current past the initial count
+    const percentage = Math.min(100, Math.round((current / total) * 100));
     progressFill.style.width = `${percentage}%`;
     progressText.textContent = `${current}/${total} offers (${percentage}%)`;
 }
@@ -198,7 +199,15 @@ runButton.addEventListener('click', () => {
         // --- Configuration & Helpers ---
         // Updated selectors for new Chase UI (Nov 2025)
         // Chase now uses SVG elements instead of mds-icon elements
-        const addButtonSelector = '[data-cy="commerce-tile-button"]';
+        // Second selector: "Recommended offers" tiles (Oct 2026), whose "+" icon only renders while not yet added
+        const addButtonSelector =
+            '[data-cy="commerce-tile-button"], [data-testid="offer-accent-add"]';
+        const offerTileSelector =
+            '[data-cy="commerce-tile"], [data-testid="commerce-tile"], [data-cy="offer"]';
+        // Recommended row shows 5 of ~20 offers; the rest load via its right arrow
+        const carouselNextSelector = '[data-testid="carouselRightChevron"]:not([disabled])';
+        const maxCarouselPagesPerAccount = 10; // safety cap in case the arrow never disables
+        let carouselPagesAdvanced = 0;
         const checkmarkSelector = 'svg[data-cy="commerce-tile-icon"]'; // Checkmark icon for added offers
         // Account switcher (Oct 2026): a trigger button that opens a bottom sheet (#accountSelectorSheet).
         // The pre-Oct-2026 combobox/listbox selectors are kept as fallbacks in case Chase A/B tests both.
@@ -268,11 +277,18 @@ runButton.addEventListener('click', () => {
             }
         }
 
+        // Human-readable merchant name for the completion summary (identifiers are opaque ids like FIGG:1901527)
+        function getOfferName(button) {
+            const offerTile = button.closest(offerTileSelector);
+            const nameEl =
+                offerTile &&
+                offerTile.querySelector('.offerMerchantName, .titleTagVariant2Container');
+            return (nameEl && nameEl.textContent.trim()) || getOfferIdentifier(button);
+        }
+
         function getOfferIdentifier(button) {
             // Create a unique identifier for an offer based on its tile content
-            const offerTile = button.closest(
-                '[data-cy="commerce-tile"], [data-testid="commerce-tile"]'
-            );
+            const offerTile = button.closest(offerTileSelector);
             if (!offerTile) {
                 console.log('Could not find commerce-tile for button');
                 return null;
@@ -535,6 +551,7 @@ runButton.addEventListener('click', () => {
                             // Reset processed offers set for new account
                             processedOffersInCurrentAccount.clear();
                             currentAccountOfferNames = [];
+                            carouselPagesAdvanced = 0;
                             console.log('Cleared processed offers for new account');
 
                             // Count buttons in new account
@@ -642,6 +659,25 @@ runButton.addEventListener('click', () => {
             if (buttonsToClick.length === 0) {
                 console.log('No buttons found, retry count:', retryCount);
 
+                // Load the next set of Recommended offers before retrying or switching accounts
+                const nextCarouselButton = document.querySelector(carouselNextSelector);
+                if (nextCarouselButton && carouselPagesAdvanced < maxCarouselPagesPerAccount) {
+                    carouselPagesAdvanced++;
+                    console.log(
+                        `Loading next set of carousel offers (page ${carouselPagesAdvanced})`
+                    );
+                    safeClick(nextCarouselButton);
+                    retryCount = 0;
+                    setTimeout(() => {
+                        if (!isPaused) {
+                            addNextItem();
+                        } else {
+                            isWaitingForResume = true;
+                        }
+                    }, 1500);
+                    return;
+                }
+
                 // Check if page is still loading content
                 const isLoading =
                     document.querySelector(
@@ -700,8 +736,8 @@ runButton.addEventListener('click', () => {
                 const offerId = getOfferIdentifier(buttonToClick);
                 if (offerId) {
                     processedOffersInCurrentAccount.add(offerId);
-                    currentAccountOfferNames.push(offerId);
                 }
+                currentAccountOfferNames.push(getOfferName(buttonToClick) || 'Unknown offer');
 
                 // Click the button wrapper or SVG directly
                 const parentButton = buttonToClick.closest('button') || buttonToClick;

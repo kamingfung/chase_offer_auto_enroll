@@ -207,7 +207,8 @@ Required permissions in `manifest.json`:
 
 Extension relies on specific Chase selectors that may break with website updates:
 
-- **Add buttons**: `[data-cy="commerce-tile-button"]` (SVG elements, changed from mds-icon in Nov 2025)
+- **Add buttons**: `[data-cy="commerce-tile-button"]` (SVG elements, changed from mds-icon in Nov 2025), plus `[data-testid="offer-accent-add"]` for "Recommended offers" tiles (Oct 2026). The latter only renders on not-yet-added offers, so it doubles as the "needs adding" check
+- **Recommended offer tiles**: `a[data-cy="offer"]` (id `offer-FIGG:<n>`, merchant name in `.offerMerchantName`); the row pages via `[data-testid="carouselRightChevron"]`, which is `disabled` on the last page
 - **Already-added indicators**: `svg[data-cy="commerce-tile-icon"]` (checkmark icon) and `[data-cy="offer-tile-alert-container-success"]` (success alert)
 - **Offer tile containers**: `[data-cy="commerce-tile"]`, `[data-testid="commerce-tile"]`
 - **Carousel section**: `[data-testid*="carousel"]` (featured/highlighted offers)

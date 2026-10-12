@@ -5,6 +5,7 @@ on:
         branches: [main, master]
     pull_request:
         branches: [main, master]
+    workflow_dispatch:
 
 permissions:
     contents: read
@@ -32,28 +33,36 @@ jobs:
               run: npm ci
 
             - name: Check formatting
-              run: npx prettier --check "*.js" "*.json" "*.html"
+              run: npx prettier --check "*.js" "*.json" "*.html" "scripts/**/*.js"
 
             - name: Lint
-              run: npx eslint *.js
+              run: npx eslint *.js scripts/**/*.js
 
             - name: Run tests
               run: npx jest --ci --coverage
 
             - name: Validate manifest
-              run: |
-                  node -e "
-                    const m = require('./manifest.json');
-                    const required = ['manifest_version', 'name', 'version', 'permissions', 'action'];
-                    const missing = required.filter(k => !m[k]);
-                    if (missing.length) { console.error('Missing keys:', missing); process.exit(1); }
-                    console.log('✓ manifest.json valid');
-                  "
+              run: node scripts/validate-manifest.js
+
+    secrets:
+        name: Secret Scan
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Gitleaks scan
+              uses: gitleaks/gitleaks-action@v2
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     package:
         name: Package Extension
         runs-on: ubuntu-latest
-        needs: check
+        needs: [check, secrets]
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
 
         steps:

@@ -45,5 +45,14 @@ module.exports = [
                 jest: 'readonly'
             }
         }
+    },
+    {
+        files: ['scripts/**/*.js'],
+        languageOptions: {
+            sourceType: 'module',
+            globals: {
+                ...globals.node
+            }
+        }
     }
 ];

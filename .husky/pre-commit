@@ -1,5 +1,15 @@
 #!/usr/bin/env sh
 
+# Scan staged changes for secrets before anything else. Soft-fails locally if
+# gitleaks isn't installed (CI runs it unconditionally, so this is a fast local
+# heads-up, not the only gate).
+if command -v gitleaks >/dev/null 2>&1; then
+  gitleaks git --staged --no-banner -v . || exit 1
+else
+  echo "gitleaks not found — skipping local secret scan (install: brew install gitleaks)." >&2
+  echo "CI will still scan for secrets before merge." >&2
+fi
+
 # Use just if available, otherwise fall back to npx lint-staged
 if command -v just >/dev/null 2>&1; then
   just pre-commit

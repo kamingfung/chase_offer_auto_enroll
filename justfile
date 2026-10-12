@@ -33,19 +33,29 @@ test-coverage:
 
 # Check linting
 lint:
-    npx eslint *.js
+    npx eslint *.js scripts/**/*.js
 
 # Auto-fix linting issues
 lint-fix:
-    npx eslint *.js --fix
+    npx eslint *.js scripts/**/*.js --fix
 
 # Format all files with Prettier
 format:
-    npx prettier --write "*.js" "*.json" "*.html"
+    npx prettier --write "*.js" "*.json" "*.html" "scripts/**/*.js"
 
 # Check formatting without making changes
 format-check:
-    npx prettier --check "*.js" "*.json" "*.html"
+    npx prettier --check "*.js" "*.json" "*.html" "scripts/**/*.js"
+
+# ─── Security ─────────────────────────────────────────────────────────────────
+
+# Scan staged changes for secrets (requires gitleaks: brew install gitleaks)
+secrets:
+    gitleaks git --staged --no-banner -v .
+
+# Scan the full git history for secrets
+secrets-full:
+    gitleaks git --no-banner -v .
 
 # ─── Pre-commit ───────────────────────────────────────────────────────────────
 
@@ -55,8 +65,8 @@ pre-commit:
 
 # ─── CI ───────────────────────────────────────────────────────────────────────
 
-# Run the full CI pipeline locally
-ci: format-check lint test
+# Run the full CI pipeline locally (requires gitleaks: brew install gitleaks)
+ci: format-check lint test validate-manifest secrets-full
 
 # ─── Utilities ────────────────────────────────────────────────────────────────
 
@@ -67,13 +77,9 @@ clean:
 # Reinstall dependencies from scratch
 reset: clean setup
 
-# Validate manifest.json structure
+# Validate manifest.json structure, version format, and version parity with package.json
 validate-manifest:
-    @node -e "const m = require('./manifest.json'); \
-        const required = ['manifest_version', 'name', 'version', 'permissions', 'action']; \
-        const missing = required.filter(k => !m[k]); \
-        if (missing.length) { console.error('Missing keys:', missing); process.exit(1); } \
-        console.log('✓ manifest.json is valid (v' + m.version + ')');"
+    node scripts/validate-manifest.js
 
 # Package extension into a zip for distribution
 package:

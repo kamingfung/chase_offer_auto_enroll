@@ -12,7 +12,6 @@ const dogWorking = document.getElementById('dog-working');
 const dogSuccess = document.getElementById('dog-success');
 
 let isPaused = false;
-let startTime = null;
 
 // Helper to switch dog images
 function showDog(type) {
@@ -63,6 +62,13 @@ function displayStats(stats) {
                 <span class="breakdown-count">${item.offers} offers</span>
             `;
             breakdownContainer.appendChild(div);
+
+            if (item.offerNames && item.offerNames.length > 0) {
+                const namesDiv = document.createElement('div');
+                namesDiv.className = 'breakdown-names';
+                namesDiv.textContent = item.offerNames.join(', ');
+                breakdownContainer.appendChild(namesDiv);
+            }
         });
     }
 
@@ -80,12 +86,12 @@ function showNotification(stats) {
     });
 }
 
-// --- Listener for Messages from Injected Script ---
-chrome.runtime.onMessage.addListener((request, _sender, _sendResponse) => {
-    console.log('Popup received message:', request);
+// Applies a status update from the injected script, whether it just arrived live
+// or was restored from storage after the popup was closed and reopened mid-run.
+function applyStatusUpdate(request) {
+    console.log('Applying status update:', request);
 
     if (request.status === 'script_started') {
-        startTime = Date.now();
         updateStatus('Adding offers...', 'status-running');
         pauseButton.style.display = 'inline-block';
         progressContainer.style.display = 'block';
@@ -114,26 +120,17 @@ chrome.runtime.onMessage.addListener((request, _sender, _sendResponse) => {
     } else if (request.status === 'account_switched') {
         updateStatus(request.message, 'status-running');
     } else if (request.status === 'script_completed') {
-        const endTime = Date.now();
-        const duration = endTime - startTime;
-        const minutes = Math.floor(duration / 60000);
-        const seconds = Math.floor((duration % 60000) / 1000);
-        const timeTaken = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
-
         const stats = request.stats || {
             totalOffersAdded: request.totalOffersAdded || 0,
             accountsProcessed: request.accountsProcessed || 1,
-            timeTaken: timeTaken,
+            timeTaken: '0s',
             breakdown: request.breakdown || []
         };
-
-        stats.timeTaken = timeTaken;
 
         updateStatus('Completed!', 'status-success');
         pauseButton.style.display = 'none';
         progressContainer.style.display = 'none';
         displayStats(stats);
-        showNotification(stats);
         showDog('success');
     } else if (request.status === 'no_buttons_found') {
         updateStatus(request.message, 'status-warning');
@@ -142,6 +139,16 @@ chrome.runtime.onMessage.addListener((request, _sender, _sendResponse) => {
         showDog('header');
     } else if (request.status === 'click_error') {
         updateStatus(`Error: ${request.message}`, 'status-error');
+    }
+}
+
+// --- Listener for Messages from Injected Script ---
+chrome.runtime.onMessage.addListener((request, _sender, _sendResponse) => {
+    applyStatusUpdate(request);
+
+    // Only notify for a completion that just happened live, not one restored from storage
+    if (request.status === 'script_completed') {
+        showNotification(request.stats);
     }
 
     return false;
@@ -172,8 +179,19 @@ runButton.addEventListener('click', () => {
     // --- Injected Script Definition ---
     // This function gets sent to the Chase page to run
     const scriptToExecute = () => {
+        // Persist every status update so the popup can restore its UI after being closed/reopened
+        const reportStatus = payload => {
+            chrome.runtime.sendMessage(payload);
+            try {
+                chrome.storage.local.set({ chaseOfferStatus: payload });
+            } catch (err) {
+                console.log('Could not persist status to storage:', err);
+            }
+        };
+
         // Let the popup know the script has started executing on the page
-        chrome.runtime.sendMessage({ status: 'script_started' });
+        const scriptStartTime = Date.now();
+        reportStatus({ status: 'script_started' });
 
         console.log('Executing Chase Offer Script...');
 
@@ -182,12 +200,18 @@ runButton.addEventListener('click', () => {
         // Chase now uses SVG elements instead of mds-icon elements
         const addButtonSelector = '[data-cy="commerce-tile-button"]';
         const checkmarkSelector = 'svg[data-cy="commerce-tile-icon"]'; // Checkmark icon for added offers
-        const accountSelector = '#select-credit-card-account';
+        // Account switcher (Oct 2026): a trigger button that opens a bottom sheet (#accountSelectorSheet).
+        // The pre-Oct-2026 combobox/listbox selectors are kept as fallbacks in case Chase A/B tests both.
+        const accountSelector =
+            '[data-testid="account-selector-trigger"], [data-testid="select-credit-card-account"]';
+        const accountOptionSelector =
+            '#accountSelectorSheet .accountSelectorListItem, ul[role="listbox"]#menu li[role="option"]';
+        const accountOptionLabelSelector = '.accountSelectorListLabel, [class*="iappo6m"]';
 
         // --- Core Functions ---
         let currentAccountIndex = (() => {
             // Find the currently selected account index from the listbox
-            const options = document.querySelectorAll('ul[role="listbox"]#menu li[role="option"]');
+            const options = document.querySelectorAll(accountOptionSelector);
             for (let i = 0; i < options.length; i++) {
                 if (options[i].getAttribute('aria-selected') === 'true') return i;
             }
@@ -199,15 +223,17 @@ runButton.addEventListener('click', () => {
         let buttonsClickedInCurrentView = 0;
         let totalButtonsClickedOverall = 0;
         const processedOffersInCurrentAccount = new Set(); // Track processed offers to avoid duplicates
+        let currentAccountOfferNames = []; // Names of offers added for the current account
 
         // Statistics tracking
         const accountStats = []; // Track offers per account
         let currentAccountName = (() => {
-            // Detect current account from the new combobox display text
-            const combobox = document.querySelector('#select-credit-card-account');
+            // Detect current account from the combobox display text
+            const combobox = document.querySelector(accountSelector);
             if (combobox) {
-                const displayText = combobox.querySelector('[class*="xko37o4"]');
+                const displayText = combobox.querySelector('[data-mds-select-value-text="true"]');
                 if (displayText) return displayText.textContent.trim();
+                if (combobox.textContent) return combobox.textContent.trim();
             }
             return 'Account 1';
         })();
@@ -216,10 +242,10 @@ runButton.addEventListener('click', () => {
         chrome.runtime.onMessage.addListener((request, _sender, _sendResponse) => {
             if (request.action === 'pause') {
                 isPaused = true;
-                chrome.runtime.sendMessage({ status: 'script_paused' });
+                reportStatus({ status: 'script_paused' });
             } else if (request.action === 'resume') {
                 isPaused = false;
-                chrome.runtime.sendMessage({ status: 'script_resumed' });
+                reportStatus({ status: 'script_resumed' });
                 if (isWaitingForResume) {
                     isWaitingForResume = false;
                     addNextItem(); // Continue from where we left off
@@ -395,16 +421,23 @@ runButton.addEventListener('click', () => {
             if (buttonsClickedInCurrentView > 0) {
                 accountStats.push({
                     account: currentAccountName,
-                    offers: buttonsClickedInCurrentView
+                    offers: buttonsClickedInCurrentView,
+                    offerNames: currentAccountOfferNames
                 });
             }
 
-            chrome.runtime.sendMessage({
+            const durationMs = Date.now() - scriptStartTime;
+            const minutes = Math.floor(durationMs / 60000);
+            const seconds = Math.floor((durationMs % 60000) / 1000);
+            const timeTaken = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+
+            reportStatus({
                 status: 'script_completed',
                 message: 'All offers processed',
                 stats: {
                     totalOffersAdded: totalButtonsClickedOverall,
                     accountsProcessed: Math.max(accountStats.length, 1),
+                    timeTaken,
                     breakdown: accountStats
                 }
             });
@@ -420,25 +453,28 @@ runButton.addEventListener('click', () => {
             if (!combobox) return false;
 
             // Notify user that we're switching/checking the next account
-            chrome.runtime.sendMessage({
+            reportStatus({
                 status: 'switching_account',
                 message: `Finished adding offers for ${currentAccountName}. Looking for next account...`
             });
 
-            // Click the combobox to open the dropdown
+            // Click the trigger to open the account sheet/dropdown
             safeClick(combobox);
 
-            // Wait for dropdown to open and select next account
+            // Wait for it to open and select next account
             setTimeout(async () => {
                 if (isPaused) {
                     await waitForResume();
                 }
 
-                // Re-query options after dropdown opens (DOM may update)
-                const freshOptionsList = document.querySelector('ul[role="listbox"]#menu');
-                const freshOptions = freshOptionsList
-                    ? freshOptionsList.querySelectorAll('li[role="option"]')
-                    : [];
+                // The sheet renders (with animation) after the click — poll up to ~3s for its options
+                let freshOptions = [];
+                for (let attempt = 0; attempt < 20 && freshOptions.length === 0; attempt++) {
+                    freshOptions = document.querySelectorAll(accountOptionSelector);
+                    if (freshOptions.length === 0) {
+                        await new Promise(resolve => setTimeout(resolve, 150));
+                    }
+                }
 
                 const nextIndex = currentAccountIndex + 1;
 
@@ -484,25 +520,28 @@ runButton.addEventListener('click', () => {
                             if (buttonsClickedInCurrentView > 0) {
                                 accountStats.push({
                                     account: currentAccountName,
-                                    offers: buttonsClickedInCurrentView
+                                    offers: buttonsClickedInCurrentView,
+                                    offerNames: currentAccountOfferNames
                                 });
                             }
 
                             // Update current account name from the option text content
-                            const nameEl = option.querySelector('[class*="iappo6m"]');
+                            const nameEl = option.querySelector(accountOptionLabelSelector);
                             currentAccountName =
                                 (nameEl && nameEl.textContent.trim()) ||
+                                (option.textContent && option.textContent.trim()) ||
                                 `Account ${currentAccountIndex + 1}`;
 
                             // Reset processed offers set for new account
                             processedOffersInCurrentAccount.clear();
+                            currentAccountOfferNames = [];
                             console.log('Cleared processed offers for new account');
 
                             // Count buttons in new account
                             totalButtonsInCurrentView = countClickableButtons();
                             buttonsClickedInCurrentView = 0;
 
-                            chrome.runtime.sendMessage({
+                            reportStatus({
                                 status: 'account_switched',
                                 message: `Switched to account: ${currentAccountName}. Found ${totalButtonsInCurrentView} offers to add.`
                             });
@@ -661,6 +700,7 @@ runButton.addEventListener('click', () => {
                 const offerId = getOfferIdentifier(buttonToClick);
                 if (offerId) {
                     processedOffersInCurrentAccount.add(offerId);
+                    currentAccountOfferNames.push(offerId);
                 }
 
                 // Click the button wrapper or SVG directly
@@ -671,7 +711,7 @@ runButton.addEventListener('click', () => {
                 totalButtonsClickedOverall++;
 
                 // Report progress
-                chrome.runtime.sendMessage({
+                reportStatus({
                     status: 'offer_clicked',
                     message: `Added offer ${buttonsClickedInCurrentView} of ${totalButtonsInCurrentView} (${totalButtonsClickedOverall} total)`,
                     current: totalButtonsClickedOverall,
@@ -691,7 +731,7 @@ runButton.addEventListener('click', () => {
                 }, 1500);
             } catch (err) {
                 console.error('Error clicking button:', err);
-                chrome.runtime.sendMessage({
+                reportStatus({
                     status: 'click_error',
                     message: err.message
                 });
@@ -718,7 +758,7 @@ runButton.addEventListener('click', () => {
             totalButtonsInCurrentView = countClickableButtons();
             buttonsClickedInCurrentView = 0;
 
-            chrome.runtime.sendMessage({
+            reportStatus({
                 status: 'buttons_counted',
                 message: `Found ${totalButtonsInCurrentView} unique offers to add`,
                 total: totalButtonsInCurrentView
@@ -762,5 +802,12 @@ runButton.addEventListener('click', () => {
     }); // --- End of Script Injection Logic ---
 }); // --- End of Button Click Handler ---
 
-// Set initial status when popup opens
-updateStatus('Ready', 'status-idle');
+// Restore the last known status when the popup is opened/reopened, so progress
+// and pause state survive the popup being closed mid-run.
+chrome.storage.local.get('chaseOfferStatus', result => {
+    if (result && result.chaseOfferStatus) {
+        applyStatusUpdate(result.chaseOfferStatus);
+    } else {
+        updateStatus('Ready', 'status-idle');
+    }
+});

@@ -323,6 +323,13 @@ button:active::after {
     color: var(--text-primary);
 }
 
+.breakdown-names {
+    font-size: 11px;
+    color: var(--text-secondary);
+    padding: 0 0 8px 0;
+    line-height: 1.4;
+}
+
 /* Footer */
 .footer {
     margin-top: auto;

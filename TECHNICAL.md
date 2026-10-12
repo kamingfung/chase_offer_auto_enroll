@@ -45,7 +45,7 @@ chase-offer-adder/
 8. **Retry Mechanism**: Implements 5-retry logic with 2-second delays to handle page loading delays (increased from 3 retries/1 second)
 9. **Loading Detection**: Detects page loading states (skeleton loaders, aria-busy) and resets retry count accordingly
 10. **Tab Switching**: Automatically cycles through all tabs before switching accounts (if tabs are present)
-11. **Account Switching**: Automatically cycles through accounts via `mds-select[id="select-credit-card-account"]`
+11. **Account Switching**: Automatically cycles through accounts via `[data-testid="account-selector-trigger"]` → `#accountSelectorSheet .accountSelectorListItem`
 12. **Navigation**: Uses `window.history.back()` between offers
 
 ### State Management
@@ -108,7 +108,10 @@ npm run lint              # Check linting
 npm run lint:fix          # Auto-fix linting issues
 npm run format            # Format all files with Prettier
 npm run format:check      # Check formatting without changes
+npm run validate-manifest # Check manifest.json structure, version format, and version parity with package.json
 ```
+
+Optional: install [`just`](https://github.com/casey/just) (`brew install just`) to run the same commands via `just check`/`just lint`/etc., and [`gitleaks`](https://github.com/gitleaks/gitleaks) (`brew install gitleaks`) so the pre-commit hook scans staged changes for secrets locally — see [Pre-commit Hooks](#pre-commit-hooks).
 
 ### Loading Extension in Chrome
 
@@ -210,12 +213,15 @@ Extension relies on specific Chase selectors that may break with website updates
 - **Carousel section**: `[data-testid*="carousel"]` (featured/highlighted offers)
 - **Grid section**: `[data-testid="grid-items-container"]` (all offers)
 - **Tab navigation** (optional): Multiple selectors including `button[data-cy*="new"]`, `[role="tab"][aria-label*="New"]`, etc.
-- **Account selector**: `mds-select[id="select-credit-card-account"]`
-- **Account options**: `mds-select-option`
+- **Account selector trigger**: `[data-testid="account-selector-trigger"]` (a `<button aria-haspopup="dialog">`; fallback `[data-testid="select-credit-card-account"]` for the pre-Oct-2026 combobox)
+- **Account display text** (current account name): the trigger button's `textContent` (fallback: `[data-mds-select-value-text="true"]` inside the old combobox)
+- **Account sheet options**: `#accountSelectorSheet .accountSelectorListItem` (fallback: `ul[role="listbox"]#menu li[role="option"]`); label text in `.accountSelectorListLabel`
 
 **Notes**:
 
 - **November 2025 Update**: Chase changed from `<mds-icon>` elements to direct `<svg>` elements for add buttons and checkmarks
+- **August 2026 Update**: The account selector's `id` attribute is now an auto-generated React id (e.g. `:r1u6:`) that changes per render/session — it is no longer a stable selector. Use `data-testid="select-credit-card-account"` instead. Likewise, the account display text moved from a hashed CSS module class to the stable `data-mds-select-value-text="true"` attribute. Prefer `data-*`/`aria-*` attributes over hashed class names (e.g. `xko37o4`, `iappo6m`) wherever possible, since those hashes churn with every Chase build.
+- **October 2026 Update**: Chase replaced the account combobox/listbox with a trigger button that opens a bottom sheet (`#accountSelectorSheet`, rows `.accountSelectorListItem`, label `.accountSelectorListLabel`). The sheet is only in the DOM while open, so the switcher polls for its rows (up to ~3s) after clicking the trigger. These are semantic (non-hashed) class names, so they're reasonably stable; the old combobox selectors are kept as fallbacks. The sheet's "selected" marker is unknown (snapshot was taken with it closed) — the switcher iterates by index, so it doesn't need one.
 - The extension automatically searches for buttons in both carousel (featured offers) and grid (all offers) sections on the same page
 - Skips offers that already have checkmark icons or success alerts, focusing only on offers with add buttons (plus icons)
 - Tab discovery uses multiple selector patterns to find page tabs if they exist
@@ -250,16 +256,22 @@ module.exports = [
 
 ### Pre-commit Hooks
 
-Configured via Husky and lint-staged:
+Configured via Husky (`.husky/pre-commit`) and lint-staged:
 
 ```json
 {
     "lint-staged": {
-        "*.js": ["prettier --write", "eslint --fix", "jest --findRelatedTests"],
+        "**/*.js": [
+            "prettier --write",
+            "eslint --fix",
+            "jest --bail --findRelatedTests --passWithNoTests"
+        ],
         "*.{json,html}": ["prettier --write"]
     }
 }
 ```
+
+Before lint-staged runs, the hook also scans staged changes for secrets with [gitleaks](https://github.com/gitleaks/gitleaks) (`gitleaks git --staged`) if it's installed locally (`brew install gitleaks`). If it isn't installed, the hook prints a warning and continues — CI runs gitleaks unconditionally, so this is a fast local heads-up rather than the only gate. If `just` is installed, the hook delegates to `just pre-commit` (see the `justfile`); otherwise it falls back to `npx lint-staged` directly.
 
 ## Chrome Extension Manifest (v3)
 
@@ -346,6 +358,16 @@ console.log('Popup received message:', request);
 3. **Buttons not found**: Inspect Chase page DOM changes
 4. **Message passing fails**: Check Chrome runtime availability
 
+## Continuous Integration
+
+Defined in `.github/workflows/ci.yml`, runs on every push/PR to `main`/`master` and can also be triggered manually (`workflow_dispatch`):
+
+- **`check`** (matrix: Node 18 and 20): install deps, `prettier --check`, `eslint`, `jest --ci --coverage`, and `node scripts/validate-manifest.js`
+- **`secrets`**: full git-history secret scan via [`gitleaks/gitleaks-action`](https://github.com/gitleaks/gitleaks-action) (checks out with `fetch-depth: 0` so it sees the whole history, not just the latest commit)
+- **`package`** (only on `main`/`master`, requires `check` and `secrets` to pass): zips `manifest.json`, `popup.html`, `popup.js`, `popup.css`, and `images/` into `chase-offer-adder-v<version>.zip` and uploads it as a workflow artifact (30-day retention)
+
+Run the same checks locally with `just ci` (requires `gitleaks`; see [Pre-commit Hooks](#pre-commit-hooks)), or the lighter `just check` for just format/lint/test without the manifest/secrets checks.
+
 ## Contributing
 
 ### Pull Request Process
@@ -369,10 +391,11 @@ console.log('Popup received message:', request);
 
 ### Release Process
 
-1. Update version in `package.json` and `manifest.json`
-2. Update CHANGELOG.md with new features/fixes
-3. Create GitHub release with zip file
-4. Test installation process
+1. Update the version in both `package.json` and `manifest.json` to today's date in [CalVer](https://calver.org) format (`YYYY.M.D`, e.g. `2026.8.16`; add a trailing `.N` for a same-day re-release) — `just bump-version <version>` updates both files at once
+2. Run `npm run validate-manifest` (or `just validate-manifest`) to confirm the version is Chrome-Web-Store-valid and the two files match
+3. Add an entry to the Changelog section in `README.md` with the functional changes
+4. Push to `main`/`master` — CI packages the zip automatically (`package` job); download it from the workflow run's artifacts, or run `just package` locally
+5. Create a GitHub release with the zip file, and test the installation process
 
 ## Recent Updates
 

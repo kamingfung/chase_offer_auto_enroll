@@ -1,6 +1,6 @@
 {
     "name": "chase-offer-adder",
-    "version": "1.0.1",
+    "version": "2026.10.12",
     "description": "Chrome extension to automatically add Chase offers",
     "main": "popup.js",
     "type": "module",
@@ -8,11 +8,12 @@
         "test": "jest",
         "test:watch": "jest --watch",
         "test:coverage": "jest --coverage",
-        "lint": "eslint *.js",
-        "lint:fix": "eslint *.js --fix",
-        "format": "prettier --write *.js *.json *.html",
-        "format:check": "prettier --check *.js *.json *.html",
-        "prepare": "husky install"
+        "lint": "eslint *.js scripts/**/*.js",
+        "lint:fix": "eslint *.js scripts/**/*.js --fix",
+        "format": "prettier --write *.js *.json *.html scripts/**/*.js",
+        "format:check": "prettier --check *.js *.json *.html scripts/**/*.js",
+        "validate-manifest": "node scripts/validate-manifest.js",
+        "prepare": "husky"
     },
     "keywords": [
         "chrome-extension",
@@ -33,7 +34,7 @@
         "prettier": "^3.0.0"
     },
     "lint-staged": {
-        "*.js": [
+        "**/*.js": [
             "prettier --write",
             "eslint --fix",
             "jest --bail --findRelatedTests --passWithNoTests"
@@ -50,6 +51,10 @@
         "testMatch": [
             "**/tests/**/*.test.js",
             "**/__tests__/**/*.js"
+        ],
+        "testPathIgnorePatterns": [
+            "/node_modules/",
+            "/.claude/"
         ],
         "collectCoverageFrom": [
             "*.js",

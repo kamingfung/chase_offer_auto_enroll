@@ -393,7 +393,7 @@ Run the same checks locally with `just ci` (requires `gitleaks`; see [Pre-commit
 
 1. Update the version in both `package.json` and `manifest.json` to today's date in [CalVer](https://calver.org) format (`YYYY.M.D`, e.g. `2026.8.16`; add a trailing `.N` for a same-day re-release) — `just bump-version <version>` updates both files at once
 2. Run `npm run validate-manifest` (or `just validate-manifest`) to confirm the version is Chrome-Web-Store-valid and the two files match
-3. Add an entry to the Changelog section in `README.md` with the functional changes
+3. Add an entry to `CHANGELOG.md` with the functional changes
 4. Push to `main`/`master` — CI packages the zip automatically (`package` job); download it from the workflow run's artifacts, or run `just package` locally
 5. Create a GitHub release with the zip file, and test the installation process
 

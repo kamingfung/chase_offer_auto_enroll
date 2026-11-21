@@ -169,23 +169,11 @@ function applyStatusUpdate(request) {
             updateStatus('Automation is already running on this page.', 'status-warning');
         });
     } else if (request.status === 'script_completed') {
-        const stats = request.stats || {
-            totalOffersAdded: request.totalOffersAdded || 0,
-            accountsProcessed: request.accountsProcessed || 1,
-            timeTaken: '0s',
-            breakdown: request.breakdown || []
-        };
-
         updateStatus('Completed!', 'status-success');
         pauseButton.style.display = 'none';
         progressContainer.style.display = 'none';
-        displayStats(stats);
+        displayStats(request.stats);
         showDog('success');
-    } else if (request.status === 'no_buttons_found') {
-        updateStatus(request.message, 'status-warning');
-        pauseButton.style.display = 'none';
-        progressContainer.style.display = 'none';
-        showDog('header');
     } else if (request.status === 'click_error') {
         updateStatus(`Error: ${request.message}`, 'status-error');
     }
@@ -326,8 +314,8 @@ runButton.addEventListener('click', () => {
             );
         }
 
-        // Listen for pause/resume messages from popup
-        chrome.runtime.onMessage.addListener((request, _sender, _sendResponse) => {
+        // Listen for pause/resume messages from popup; removed when the run completes
+        const onPauseResume = (request, _sender, _sendResponse) => {
             if (request.action === 'pause') {
                 isPaused = true;
                 reportStatus({ status: 'script_paused' });
@@ -340,7 +328,8 @@ runButton.addEventListener('click', () => {
                 }
             }
             return false;
-        });
+        };
+        chrome.runtime.onMessage.addListener(onPauseResume);
 
         async function waitForResume() {
             if (isPaused) {
@@ -445,69 +434,57 @@ runButton.addEventListener('click', () => {
             }
         };
 
-        function countClickableButtons() {
+        // Offers whose button can be clicked now and that were not added or clicked yet.
+        // Both the progress count and the click loop use this, so they always agree.
+        function findClickableButtons() {
             const addButtons = Array.from(document.querySelectorAll(addButtonSelector));
-            console.log(`[COUNT] Found ${addButtons.length} total add button elements`);
-
-            let count = 0;
-            const seenOffers = new Set();
-
-            addButtons.forEach(button => {
+            return addButtons.filter(button => {
                 const rect = button.getBoundingClientRect();
                 const inCarousel = button.closest('[data-testid*="carousel"]');
                 const isVisible = rect.width > 0 && rect.height > 0;
 
                 // Accept carousel items even if not currently visible (they can be scrolled to)
                 if (!isVisible && !inCarousel) {
-                    return;
+                    return false;
                 }
 
-                // Use the same ancestor lookup as addNextItem so the count and the
-                // click loop agree on what is clickable.
                 const parentButton = button.closest('button, [role="button"]') || button;
                 const isClickable =
                     !parentButton.disabled &&
                     window.getComputedStyle(parentButton).display !== 'none';
 
                 if (!isClickable) {
-                    return;
+                    return false;
                 }
 
-                // Check if this offer tile already has a checkmark or success alert
+                // Check if this offer tile already has a checkmark or success alert (already added)
                 const offerTile = button.closest(
-                    '[data-cy="commerce-tile"], [data-testid="commerce-tile"]'
+                    '[data-cy*="offer-tile"], [data-testid*="offer-tile"], [data-cy="commerce-tile"], [data-testid="commerce-tile"]'
                 );
 
-                let alreadyAdded = false;
                 if (offerTile) {
                     const hasCheckmark = offerTile.querySelector(checkmarkSelector);
                     const hasSuccessAlert = offerTile.querySelector(
                         '[data-testid="offer-tile-alert-container-success"], [data-cy="offer-tile-alert-container-success"]'
                     );
-                    alreadyAdded = hasCheckmark || hasSuccessAlert;
+
+                    if (hasCheckmark || hasSuccessAlert) {
+                        return false;
+                    }
                 }
 
-                if (alreadyAdded) {
-                    return;
-                }
-
-                // Check if we've already processed this offer
-                const offerId = getOfferIdentifier(button);
-                const alreadyProcessed = offerId && processedOffersInCurrentAccount.has(offerId);
-
-                if (alreadyProcessed) {
-                    return;
-                }
-
-                // Check if we've already seen this offer in the current count (duplicates in view)
-                const alreadyCounted = offerId && seenOffers.has(offerId);
-
-                if (!alreadyCounted) {
-                    if (offerId) seenOffers.add(offerId);
-                    count++;
-                }
+                return !processedOffersInCurrentAccount.has(getOfferKey(button));
             });
+        }
 
+        // An offer with no readable identifier is tracked by its button element, so a click
+        // that Chase ignores is not repeated forever.
+        function getOfferKey(button) {
+            return getOfferIdentifier(button) ?? button;
+        }
+
+        function countClickableButtons() {
+            const count = new Set(findClickableButtons().map(getOfferKey)).size;
             console.log(`[COUNT] Unique clickable offers: ${count}`);
             return count;
         }
@@ -522,6 +499,7 @@ runButton.addEventListener('click', () => {
             }
 
             window.__chaseOfferAdderRunning = false;
+            chrome.runtime.onMessage.removeListener(onPauseResume);
 
             const durationMs = Date.now() - scriptStartTime;
             const minutes = Math.floor(durationMs / 60000);
@@ -541,11 +519,6 @@ runButton.addEventListener('click', () => {
         }
 
         function switchToNextAccount() {
-            if (isPaused) {
-                isWaitingForResume = true;
-                return false;
-            }
-
             const combobox = document.querySelector(accountSelector);
             if (!combobox) return false;
 
@@ -580,75 +553,70 @@ runButton.addEventListener('click', () => {
                     const option = freshOptions[nextIndex];
                     processedAccountNames.add(optionNames[nextIndex]);
 
-                    if (option) {
-                        safeClick(option);
+                    safeClick(option);
 
-                        // Set up a listener to catch and correct the overview redirect
-                        let checkCount = 0;
-                        const checkInterval = setInterval(() => {
-                            checkCount++;
-                            const hash = (window.location && window.location.hash) || '';
-                            if (hash.includes('/dashboard/overview')) {
-                                clearInterval(checkInterval);
-                                console.log(
-                                    'Detected redirect to overview, navigating back to offers hub...'
-                                );
-                                const accountId = getAccountIdFromOption(option);
-                                if (window.location) {
-                                    if (accountId) {
-                                        window.location.hash = `/dashboard/merchantOffers/offer-hub?accountId=${accountId}`;
-                                    } else {
-                                        window.location.hash =
-                                            '/dashboard/merchantOffers/offer-hub';
-                                    }
+                    // Set up a listener to catch and correct the overview redirect
+                    let checkCount = 0;
+                    const checkInterval = setInterval(() => {
+                        checkCount++;
+                        const hash = (window.location && window.location.hash) || '';
+                        if (hash.includes('/dashboard/overview')) {
+                            clearInterval(checkInterval);
+                            console.log(
+                                'Detected redirect to overview, navigating back to offers hub...'
+                            );
+                            const accountId = getAccountIdFromOption(option);
+                            if (window.location) {
+                                if (accountId) {
+                                    window.location.hash = `/dashboard/merchantOffers/offer-hub?accountId=${accountId}`;
+                                } else {
+                                    window.location.hash = '/dashboard/merchantOffers/offer-hub';
                                 }
                             }
-                            if (checkCount >= 20) {
-                                // check for 2 seconds
-                                clearInterval(checkInterval);
-                            }
-                        }, 100);
+                        }
+                        if (checkCount >= 20) {
+                            // check for 2 seconds
+                            clearInterval(checkInterval);
+                        }
+                    }, 100);
 
-                        // Scroll to top of page to ensure we start from the beginning
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                    // Scroll to top of page to ensure we start from the beginning
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
 
-                        // Wait for account switch to complete before continuing (longer wait for account switches)
-                        setTimeout(() => {
-                            // Save stats for previous account before switching
-                            if (buttonsClickedInCurrentView > 0) {
-                                accountStats.push({
-                                    account: currentAccountName,
-                                    offers: buttonsClickedInCurrentView,
-                                    offerNames: currentAccountOfferNames
-                                });
-                            }
-
-                            currentAccountName = optionNames[nextIndex];
-
-                            // Reset processed offers set for new account
-                            processedOffersInCurrentAccount.clear();
-                            currentAccountOfferNames = [];
-                            carouselPagesAdvanced = 0;
-                            console.log('Cleared processed offers for new account');
-
-                            // Count buttons in new account
-                            totalButtonsInCurrentView = countClickableButtons();
-                            buttonsClickedInCurrentView = 0;
-
-                            reportStatus({
-                                status: 'account_switched',
-                                message: `Switched to account: ${currentAccountName}. Found ${totalButtonsInCurrentView} offers to add.`
+                    // Wait for account switch to complete before continuing (longer wait for account switches)
+                    setTimeout(() => {
+                        // Save stats for previous account before switching
+                        if (buttonsClickedInCurrentView > 0) {
+                            accountStats.push({
+                                account: currentAccountName,
+                                offers: buttonsClickedInCurrentView,
+                                offerNames: currentAccountOfferNames
                             });
+                        }
 
-                            if (!isPaused) {
-                                addNextItem();
-                            } else {
-                                isWaitingForResume = true;
-                            }
-                        }, 2500);
-                    } else {
-                        completeAutomation();
-                    }
+                        currentAccountName = optionNames[nextIndex];
+
+                        // Reset processed offers set for new account
+                        processedOffersInCurrentAccount.clear();
+                        currentAccountOfferNames = [];
+                        carouselPagesAdvanced = 0;
+                        console.log('Cleared processed offers for new account');
+
+                        // Count buttons in new account
+                        totalButtonsInCurrentView = countClickableButtons();
+                        buttonsClickedInCurrentView = 0;
+
+                        reportStatus({
+                            status: 'account_switched',
+                            message: `Switched to account: ${currentAccountName}. Found ${totalButtonsInCurrentView} offers to add.`
+                        });
+
+                        if (!isPaused) {
+                            addNextItem();
+                        } else {
+                            isWaitingForResume = true;
+                        }
+                    }, 2500);
                 } else {
                     // No more accounts. Close the dropdown first.
                     safeClick(combobox);
@@ -662,6 +630,8 @@ runButton.addEventListener('click', () => {
         let retryCount = 0;
         const maxRetries = 5; // Increased from 3 to 5 for better reliability
         const retryDelay = 2000; // Increased from 1000ms to 2000ms
+        let loadingWaits = 0;
+        const maxLoadingWaits = 30; // 30 waits x 2s retry delay = 1 minute
 
         const addNextItem = async () => {
             if (isPaused) {
@@ -685,52 +655,8 @@ runButton.addEventListener('click', () => {
 
             console.log('Executing: addNextItem() - Looking for next button');
 
-            // Find all add buttons across both carousel and grid sections
-            const addButtons = Array.from(document.querySelectorAll(addButtonSelector));
-            console.log('Found', addButtons.length, 'add buttons total across all sections');
-
-            const buttonsToClick = addButtons.filter(button => {
-                const rect = button.getBoundingClientRect();
-                const inCarousel = button.closest('[data-testid*="carousel"]');
-                const isVisible = rect.width > 0 && rect.height > 0;
-
-                if (!isVisible && !inCarousel) {
-                    return false;
-                }
-
-                const parentButton = button.closest('button, [role="button"]') || button;
-                const isClickable =
-                    !parentButton.disabled &&
-                    window.getComputedStyle(parentButton).display !== 'none';
-
-                if (!isClickable) {
-                    return false;
-                }
-
-                // Check if this offer tile already has a checkmark or success alert (already added)
-                const offerTile = button.closest(
-                    '[data-cy*="offer-tile"], [data-testid*="offer-tile"], [data-cy="commerce-tile"], [data-testid="commerce-tile"]'
-                );
-
-                if (offerTile) {
-                    const hasCheckmark = offerTile.querySelector(checkmarkSelector);
-                    const hasSuccessAlert = offerTile.querySelector(
-                        '[data-testid="offer-tile-alert-container-success"], [data-cy="offer-tile-alert-container-success"]'
-                    );
-
-                    if (hasCheckmark || hasSuccessAlert) {
-                        return false;
-                    }
-                }
-
-                // Check if we've already processed this offer in this account
-                const offerId = getOfferIdentifier(button);
-                if (offerId && processedOffersInCurrentAccount.has(offerId)) {
-                    return false;
-                }
-
-                return true;
-            });
+            const buttonsToClick = findClickableButtons();
+            console.log('Found', buttonsToClick.length, 'offers to add');
 
             if (buttonsToClick.length === 0) {
                 console.log('No buttons found, retry count:', retryCount);
@@ -754,15 +680,22 @@ runButton.addEventListener('click', () => {
                     return;
                 }
 
-                // Check if page is still loading content
-                const isLoading =
-                    document.querySelector(
-                        '[data-testid*="skeleton"], [class*="skeleton"], [class*="loading"]'
-                    ) || document.querySelector('[aria-busy="true"]');
+                // Keep waiting while the page shows a loading marker. Hidden markers don't count
+                // (pages keep hidden spinners around), and the wait is capped so a marker that
+                // never goes away cannot hold the run forever.
+                const isLoading = Array.from(
+                    document.querySelectorAll(
+                        '[data-testid*="skeleton"], [class*="skeleton"], [class*="loading"], [aria-busy="true"]'
+                    )
+                ).some(el => {
+                    const rect = el.getBoundingClientRect();
+                    return rect.width > 0 && rect.height > 0;
+                });
 
-                if (isLoading) {
+                if (isLoading && loadingWaits < maxLoadingWaits) {
+                    loadingWaits++;
                     console.log('Page is still loading content, resetting retry count');
-                    retryCount = 0; // Reset retry count if page is actively loading
+                    retryCount = 0;
                 }
 
                 if (retryCount < maxRetries) {
@@ -791,6 +724,7 @@ runButton.addEventListener('click', () => {
 
             // Reset retry count when we find buttons
             retryCount = 0;
+            loadingWaits = 0;
 
             // Pick the first button to click (sequential)
             const buttonToClick = buttonsToClick[0];
@@ -808,11 +742,7 @@ runButton.addEventListener('click', () => {
                     buttonToClick.scrollIntoView({ behavior: 'auto', block: 'center' });
                 }
 
-                // Mark as processed
-                const offerId = getOfferIdentifier(buttonToClick);
-                if (offerId) {
-                    processedOffersInCurrentAccount.add(offerId);
-                }
+                processedOffersInCurrentAccount.add(getOfferKey(buttonToClick));
                 currentAccountOfferNames.push(getOfferName(buttonToClick) || 'Unknown offer');
 
                 // Click the button wrapper or SVG directly
@@ -937,4 +867,24 @@ function restoreSavedStatus(result) {
     }
 }
 
-chrome.storage.local.get(SAVED_STATUS_KEYS, restoreSavedStatus);
+// A saved "running" status outlives the run when the tab is reloaded or Chrome restarts,
+// so only restore it if the active tab still has a live run.
+function checkRunIsLive(callback) {
+    chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
+        const tab = tabs[0];
+        if (!tab || !isAllowedChaseUrl(tab.url)) return callback(false);
+        chrome.scripting
+            .executeScript({
+                target: { tabId: tab.id },
+                func: () => !!window.__chaseOfferAdderRunning
+            })
+            .then(results => callback(Boolean(results && results[0] && results[0].result)))
+            .catch(() => callback(false));
+    });
+}
+
+chrome.storage.local.get(SAVED_STATUS_KEYS, result => {
+    const saved = result && result.chaseOfferStatus;
+    if (!saved || !RUNNING_STATUSES.includes(saved.status)) return restoreSavedStatus(result);
+    checkRunIsLive(isLive => restoreSavedStatus(isLive ? result : {}));
+});

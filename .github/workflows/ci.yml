@@ -33,16 +33,16 @@ jobs:
               run: npm ci
 
             - name: Check formatting
-              run: npx prettier --check "*.js" "*.json" "*.html" "*.css" "scripts/**/*.js" "tests/**/*.js"
+              run: npm run format:check
 
             - name: Lint
-              run: npx eslint *.js scripts/**/*.js tests/**/*.js
+              run: npm run lint
 
             - name: Run tests
-              run: npx jest --ci --coverage
+              run: npm test -- --ci --coverage
 
             - name: Validate manifest
-              run: node scripts/validate-manifest.js
+              run: npm run validate-manifest
 
     secrets:
         name: Secret Scan

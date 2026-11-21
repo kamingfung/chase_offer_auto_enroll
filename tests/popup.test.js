@@ -88,11 +88,16 @@ describe('Popup', () => {
     });
 
     describe('reopening the popup mid-run', () => {
-        test('shows the progress bar and Pause button with the saved progress', () => {
-            loadPopup({
-                chaseOfferStatus: { status: 'account_switched', message: 'Switched to account: B' },
-                chaseOfferProgress: { current: 4, total: 9 }
-            });
+        const midRun = {
+            chaseOfferStatus: { status: 'account_switched', message: 'Switched to account: B' },
+            chaseOfferProgress: { current: 4, total: 9 }
+        };
+        // Let the async "is the run still live?" check finish
+        const flush = () => new Promise(resolve => setTimeout(resolve, 0));
+
+        test('shows the progress bar and Pause button with the saved progress', async () => {
+            loadPopup(midRun, { runIsLive: true });
+            await flush();
 
             expect($('status').textContent).toBe('Switched to account: B');
             expect(isShown($('progressContainer'))).toBe(true);
@@ -100,13 +105,29 @@ describe('Popup', () => {
             expect(document.querySelector('.progress-text').textContent).toBe('4/9 offers (44%)');
         });
 
-        test('a paused run resumes on the first click instead of pausing again', () => {
-            loadPopup({ chaseOfferStatus: { status: 'script_paused' } });
+        test('a paused run resumes on the first click instead of pausing again', async () => {
+            loadPopup({ chaseOfferStatus: { status: 'script_paused' } }, { runIsLive: true });
+            await flush();
 
             expect($('pauseButton').textContent).toBe('Resume');
             $('pauseButton').click();
 
             expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(7, { action: 'resume' });
+        });
+
+        test('shows Ready when the run ended without finishing (tab reloaded)', async () => {
+            loadPopup(midRun, { runIsLive: false });
+            await flush();
+
+            expect($('status').textContent).toBe('Ready');
+            expect(isShown($('pauseButton'))).toBe(false);
+        });
+
+        test('shows Ready when the active tab is not Chase', async () => {
+            loadPopup(midRun, { runIsLive: true, tabUrl: 'https://example.com/' });
+            await flush();
+
+            expect($('status').textContent).toBe('Ready');
         });
     });
 

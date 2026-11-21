@@ -19,33 +19,33 @@ check: format-check lint test
 
 # Run all tests
 test:
-    npx jest
+    npm test
 
 # Run tests in watch mode
 test-watch:
-    npx jest --watch
+    npm run test:watch
 
 # Run tests with coverage report
 test-coverage:
-    npx jest --coverage
+    npm run test:coverage
 
 # ─── Code Quality ─────────────────────────────────────────────────────────────
 
 # Check linting
 lint:
-    npx eslint *.js scripts/**/*.js tests/**/*.js
+    npm run lint
 
 # Auto-fix linting issues
 lint-fix:
-    npx eslint *.js scripts/**/*.js tests/**/*.js --fix
+    npm run lint:fix
 
 # Format all files with Prettier
 format:
-    npx prettier --write "*.js" "*.json" "*.html" "*.css" "scripts/**/*.js" "tests/**/*.js"
+    npm run format
 
 # Check formatting without making changes
 format-check:
-    npx prettier --check "*.js" "*.json" "*.html" "*.css" "scripts/**/*.js" "tests/**/*.js"
+    npm run format:check
 
 # ─── Security ─────────────────────────────────────────────────────────────────
 
@@ -79,7 +79,7 @@ reset: clean setup
 
 # Validate manifest.json structure, version format, and version parity with package.json
 validate-manifest:
-    node scripts/validate-manifest.js
+    npm run validate-manifest
 
 # Package extension into a zip for distribution
 package:

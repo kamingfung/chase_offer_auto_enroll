@@ -35,7 +35,8 @@ function loadPopup(stored = {}, options = {}) {
     window.__chaseOfferAdderRunning = false;
     chrome.storage.local.get.mockImplementation((_keys, callback) => callback(stored));
     chrome.tabs.query.mockImplementation((_query, callback) => callback([{ id: 7, url: tabUrl }]));
-    chrome.scripting.executeScript.mockResolvedValue([]);
+    // What the popup's "is a run still live in this tab?" check sees on open
+    chrome.scripting.executeScript.mockResolvedValue([{ result: Boolean(options.runIsLive) }]);
 
     const listenersBefore = chrome.runtime.onMessage.addListener.mock.calls.length;
     jest.resetModules();

@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "Chase Offer Adder",
-    "version": "2026.11.20",
+    "version": "2026.11.20.1",
     "description": "Automatically adds available Chase Offers to your cards from the Chase Offers page.",
     "permissions": ["activeTab", "scripting", "notifications", "storage"],
     "action": {

@@ -5,7 +5,8 @@ global.chrome = {
     runtime: {
         sendMessage: jest.fn(),
         onMessage: {
-            addListener: jest.fn()
+            addListener: jest.fn(),
+            removeListener: jest.fn()
         }
     },
     tabs: {

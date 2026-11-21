@@ -2,6 +2,16 @@
 
 Functional changes only — full commit-level detail lives in `git log`. Versions use [CalVer](https://calver.org) (`YYYY.M.D`, with a trailing `.N` for same-day releases) instead of semver, since compatibility here is really "does this still work against Chase's current site," not an API contract.
 
+## 2026.11.20.1
+
+- 🐛 **A run no longer hangs on a leftover loading marker**: the script kept waiting while any element with "loading" or "skeleton" in its class existed, even a hidden one. It now counts only visible markers and gives up waiting after 1 minute
+- 🐛 **Reopening the popup after a reload or Chrome restart shows Ready**: the saved "running" status outlived the run, leaving a frozen progress bar and a Pause button that did nothing. The popup now checks that the active Chase tab still has a live run before showing it
+- 🐛 **An offer Chase ignores is clicked once, not forever**: an offer tile with no readable id was never remembered, so it was clicked every 1.5 seconds and each click counted as an added offer
+- 🔧 Counting and clicking share one filter, so the progress total and the clicks can no longer drift apart
+- 🔧 A finished run stops listening for Pause, so a second run on the same page no longer sends duplicate "paused" messages
+- 🔧 Removed unused files and code: the Python project file (`pandas`, `ipykernel`), the old manual test page `test-page.html`, the never-sent `no_buttons_found` status and other unreachable branches
+- 🔧 `justfile` and CI call the npm scripts, so the lint, format and test file lists live only in `package.json`
+
 ## 2026.11.20
 
 - 🐛 **Every card is covered, whichever card you start on**: the run assumed it always started on the first card, so cards listed before the selected one were skipped. It now picks the next card by name, skipping cards it has already done

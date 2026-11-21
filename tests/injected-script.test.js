@@ -282,6 +282,13 @@ describe('Injected automation script', () => {
             expect(sentMessages('script_completed')).toHaveLength(1);
         });
 
+        test('stops listening for Pause once the run completes', async () => {
+            const { scriptListener } = startRun({ accounts: twoCards });
+            await jest.advanceTimersByTimeAsync(120000);
+
+            expect(chrome.runtime.onMessage.removeListener).toHaveBeenCalledWith(scriptListener);
+        });
+
         test('can run again after a run completes', async () => {
             startRun({ accounts: twoCards });
             await jest.advanceTimersByTimeAsync(120000);
@@ -361,5 +368,52 @@ describe('Injected automation script', () => {
                 expect(page.clicks).toEqual(['Blueland']);
             }
         );
+    });
+
+    describe('pages that never settle', () => {
+        const oneCard = [{ name: 'Sapphire...1234', grid: [{ name: 'Pandora' }] }];
+
+        test('ignores a hidden loading marker', async () => {
+            startRun({ accounts: oneCard });
+            const spinner = document.createElement('div');
+            spinner.className = 'loadingSpinner';
+            document.body.append(spinner);
+            const visible = { width: 40, height: 40, top: 10, left: 10, bottom: 50, right: 50 };
+            jest.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function () {
+                return this === spinner ? { ...visible, width: 0, height: 0 } : visible;
+            });
+
+            await jest.advanceTimersByTimeAsync(120000);
+
+            expect(sentMessages('script_completed')).toHaveLength(1);
+        });
+
+        test('finishes even when a loading marker never goes away', async () => {
+            startRun({ accounts: oneCard });
+            const skeleton = document.createElement('div');
+            skeleton.setAttribute('data-testid', 'skeleton');
+            document.body.append(skeleton);
+
+            await jest.advanceTimersByTimeAsync(300000);
+
+            expect(sentMessages('script_completed')).toHaveLength(1);
+        });
+
+        test('clicks an offer with no identifier only once when Chase ignores the click', async () => {
+            loadPopup();
+            const tile = document.createElement('a');
+            tile.setAttribute('role', 'button');
+            tile.setAttribute('data-cy', 'commerce-tile');
+            tile.innerHTML = '<svg data-cy="commerce-tile-button"></svg>';
+            const clicks = jest.fn();
+            tile.addEventListener('click', clicks);
+            document.body.append(tile);
+
+            clickRunAndGetInjectedScript()();
+            await jest.advanceTimersByTimeAsync(60000);
+
+            expect(clicks).toHaveBeenCalledTimes(1);
+            expect(sentMessages('script_completed')).toHaveLength(1);
+        });
     });
 });

@@ -141,7 +141,6 @@ The extension uses Chrome runtime messaging for popup ↔ injected script commun
 - `switching_account` - Finished current account, opening the account dropdown
 - `account_switched` - Switched to new account
 - `script_completed` - All accounts processed; carries `stats` (`totalOffersAdded`, `accountsProcessed`, `timeTaken`, and `breakdown` with per-account `offerNames`)
-- `no_buttons_found` - No offers available
 - `click_error` - Error during button clicking, or the page is not a Chase page
 
 **From Popup to Injected Script:**

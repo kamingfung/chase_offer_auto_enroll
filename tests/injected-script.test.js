@@ -15,11 +15,17 @@ const {
  * an offer marks it added, like the real page. Records every offer click in `clicks`.
  * `redirectOnSwitch` mimics Chase bouncing to the dashboard overview after a switch.
  * Each account may carry `optionAttributes` to put on its picker option (e.g. an id).
+ * `startAccount` is the card selected when the page loads.
  */
-function buildChasePage({ accounts, picker = 'sheet', redirectOnSwitch = false }) {
+function buildChasePage({
+    accounts,
+    picker = 'sheet',
+    redirectOnSwitch = false,
+    startAccount = 0
+}) {
     const clicks = [];
     const added = new Set(accounts.flatMap(a => a.grid.filter(o => o.added).map(o => o.name)));
-    let accountIndex = 0;
+    let accountIndex = startAccount;
     let carouselPage = 0;
 
     const pickerEl = document.createElement(picker === 'sheet' ? 'button' : 'div');
@@ -198,6 +204,20 @@ describe('Injected automation script', () => {
 
         expect(page.clicks).toContain('Blueland');
         expect(sentMessages('account_switched')[0].message).toContain('Freedom...5678');
+    });
+
+    test('covers every card when the run starts on a card other than the first', async () => {
+        const accounts = [
+            { name: 'Sapphire...1234', grid: [{ name: 'Pandora' }] },
+            { name: 'Freedom...5678', grid: [{ name: 'Blueland' }] },
+            { name: 'Ink...9012', grid: [{ name: 'Logitech' }] }
+        ];
+        const { page } = startRun({ accounts, startAccount: 1 });
+        await jest.advanceTimersByTimeAsync(120000);
+
+        expect([...page.clicks].sort()).toEqual(['Blueland', 'Logitech', 'Pandora']);
+        const [completed] = sentMessages('script_completed');
+        expect(completed.stats.accountsProcessed).toBe(3);
     });
 
     test('saves progress to storage so a reopened popup can restore it', async () => {

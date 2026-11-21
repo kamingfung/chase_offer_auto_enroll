@@ -293,14 +293,6 @@ runButton.addEventListener('click', () => {
         const accountOptionLabelSelector = '.accountSelectorListLabel, [class*="iappo6m"]';
 
         // --- Core Functions ---
-        let currentAccountIndex = (() => {
-            // Find the currently selected account index from the listbox
-            const options = document.querySelectorAll(accountOptionSelector);
-            for (let i = 0; i < options.length; i++) {
-                if (options[i].getAttribute('aria-selected') === 'true') return i;
-            }
-            return 0;
-        })();
         let isPaused = false;
         let isWaitingForResume = false;
         let totalButtonsInCurrentView = 0;
@@ -321,6 +313,18 @@ runButton.addEventListener('click', () => {
             }
             return 'Account 1';
         })();
+        // Cards are picked by name, not position: the run can start on any card, and the
+        // picker list (needed to know the position) only exists while it is open.
+        const processedAccountNames = new Set([currentAccountName]);
+
+        function getAccountOptionName(option, index) {
+            const nameEl = option.querySelector(accountOptionLabelSelector);
+            return (
+                (nameEl && nameEl.textContent.trim()) ||
+                (option.textContent && option.textContent.trim()) ||
+                `Account ${index + 1}`
+            );
+        }
 
         // Listen for pause/resume messages from popup
         chrome.runtime.onMessage.addListener((request, _sender, _sendResponse) => {
@@ -569,11 +573,12 @@ runButton.addEventListener('click', () => {
                     }
                 }
 
-                const nextIndex = currentAccountIndex + 1;
+                const optionNames = Array.from(freshOptions, getAccountOptionName);
+                const nextIndex = optionNames.findIndex(name => !processedAccountNames.has(name));
 
-                if (nextIndex < freshOptions.length) {
-                    currentAccountIndex = nextIndex;
-                    const option = freshOptions[currentAccountIndex];
+                if (nextIndex !== -1) {
+                    const option = freshOptions[nextIndex];
+                    processedAccountNames.add(optionNames[nextIndex]);
 
                     if (option) {
                         safeClick(option);
@@ -618,12 +623,7 @@ runButton.addEventListener('click', () => {
                                 });
                             }
 
-                            // Update current account name from the option text content
-                            const nameEl = option.querySelector(accountOptionLabelSelector);
-                            currentAccountName =
-                                (nameEl && nameEl.textContent.trim()) ||
-                                (option.textContent && option.textContent.trim()) ||
-                                `Account ${currentAccountIndex + 1}`;
+                            currentAccountName = optionNames[nextIndex];
 
                             // Reset processed offers set for new account
                             processedOffersInCurrentAccount.clear();

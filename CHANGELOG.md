@@ -2,6 +2,11 @@
 
 Functional changes only — full commit-level detail lives in `git log`. Versions use [CalVer](https://calver.org) (`YYYY.M.D`, with a trailing `.N` for same-day releases) instead of semver, since compatibility here is really "does this still work against Chase's current site," not an API contract.
 
+## 2026.11.20
+
+- 🐛 **Every card is covered, whichever card you start on**: the run assumed it always started on the first card, so cards listed before the selected one were skipped. It now picks the next card by name, skipping cards it has already done
+- 🔧 Tests run again inside `.claude/worktrees/` checkouts; Jest's ignore pattern for nested worktrees also matched the checkout itself, so `npm test` and the pre-commit hook ran no tests there
+
 ## 2026.10.12.3
 
 Merges the September security hardening branch into the current code.

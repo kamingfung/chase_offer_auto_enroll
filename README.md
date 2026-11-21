@@ -189,7 +189,7 @@ Contributions are welcome. See [TECHNICAL.md](TECHNICAL.md) for the architecture
 <!-- LICENSE -->
 ## License
 
-Distributed under the MIT License.
+Distributed under the MIT License. See [LICENSE](LICENSE) for details.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -211,4 +211,4 @@ Distributed under the MIT License.
 [last-commit-shield]: https://img.shields.io/github/last-commit/kamingfung/chase_offer_auto_enroll.svg?style=for-the-badge
 [last-commit-url]: https://github.com/kamingfung/chase_offer_auto_enroll/commits/main
 [license-shield]: https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge
-[license-url]: https://opensource.org/licenses/MIT
+[license-url]: LICENSE

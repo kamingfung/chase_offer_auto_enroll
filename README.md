@@ -1,52 +1,123 @@
-# Chase Offer Adder
+<a id="readme-top"></a>
 
-> **Automate Chase Offers with ease!** Stop clicking endlessly and save time by automatically adding Chase Offers across all your credit cards.
+<!-- PROJECT SHIELDS -->
+[![Stars][stars-shield]][stars-url]
+[![Issues][issues-shield]][issues-url]
+[![Last commit][last-commit-shield]][last-commit-url]
+[![MIT License][license-shield]][license-url]
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Last Updated](https://img.shields.io/badge/Last%20Updated-October%202026-blue)]()
+<!-- PROJECT LOGO -->
+<br />
+<div align="center">
+  <a href="https://github.com/kamingfung/chase_offer_auto_enroll">
+    <img src="images/icon128.png" alt="Logo" width="96" height="96">
+  </a>
 
-## 🚀 Quick Start
+  <h3 align="center">Chase Offer Adder</h3>
 
-1. **Install** the extension (see [Installation](#installation) below)
-2. **Navigate** to your Chase Offers page
-3. **Click** the extension icon and hit "Add offers"
-4. **Sit back** and watch it work automatically!
+  <p align="center">
+    A Chrome extension that adds every Chase Offer to every one of your credit cards in one click.
+    <br />
+    <a href="TECHNICAL.md"><strong>Explore the technical docs »</strong></a>
+    <br />
+    <br />
+    <a href="#usage">How it works</a>
+    &middot;
+    <a href="https://github.com/kamingfung/chase_offer_auto_enroll/issues/new?labels=bug">Report Bug</a>
+    &middot;
+    <a href="https://github.com/kamingfung/chase_offer_auto_enroll/issues/new?labels=enhancement">Request Feature</a>
+  </p>
+</div>
 
-## 📋 Table of Contents
+<!-- TABLE OF CONTENTS -->
+<details>
+  <summary>Table of Contents</summary>
+  <ol>
+    <li>
+      <a href="#about-the-project">About The Project</a>
+      <ul>
+        <li><a href="#built-with">Built With</a></li>
+      </ul>
+    </li>
+    <li>
+      <a href="#getting-started">Getting Started</a>
+      <ul>
+        <li><a href="#prerequisites">Prerequisites</a></li>
+        <li><a href="#installation">Installation</a></li>
+      </ul>
+    </li>
+    <li><a href="#usage">Usage</a></li>
+    <li><a href="#troubleshooting">Troubleshooting</a></li>
+    <li><a href="#faq">FAQ</a></li>
+    <li><a href="#contributing">Contributing</a></li>
+    <li><a href="#license">License</a></li>
+    <li><a href="#disclaimer">Disclaimer</a></li>
+  </ol>
+</details>
 
-- [Overview](#overview)
-- [What Happens When You Click "Add Offers"](#-what-happens-when-you-click-add-offers)
-- [Features](#features)
-- [Installation](#installation)
-- [How to Use](#how-to-use)
-- [Screenshots](#screenshots)
-- [Troubleshooting](#troubleshooting)
-- [FAQ](#faq)
-- [Changelog](CHANGELOG.md)
-- [Disclaimer](#disclaimer)
-- [For Developers](#for-developers)
+<!-- ABOUT THE PROJECT -->
+## About The Project
 
-## 📖 Overview
+![Extension Popup](images/popup.png)
 
-This Chrome extension automates the tedious process of adding Chase Offers to your credit cards. Instead of manually clicking through each offer and account, the extension:
+Chase gives you dozens of cash-back offers per card, and each one needs its own "Add to Card" click. With several cards, that is hundreds of clicks. This extension does the clicking for you:
 
-- **Automatically detects** and clicks "Add to Card" buttons across all page sections
-- **Switches between accounts** seamlessly
-- **Provides real-time feedback** on progress
-- **Pause/resume functionality** for complete control
-- **Enhanced retry mechanism** with smart loading detection for maximum reliability
-- **Handles errors gracefully** with clear status messages
+- **Finds every offer**: it scans the Recommended offers row and the full offer list, and pages through the Recommended row to reach hidden offers.
+- **Skips what you already added**: offers with a checkmark are left alone, so running it again is safe.
+- **Switches cards for you**: when one card is done, it moves to the next.
+- **Retries when the page is slow**: up to 5 retries, with loading detection.
+- **Shows progress live**: a progress bar and a per-card summary at the end.
+- **Pause and resume**: stop at any time and pick up where you left off.
+- **Auto-scrolls**: off-screen buttons are scrolled into view before clicking.
 
-### How It Works
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-1. 🔍 **Scans** both the Recommended offers row and the full offer list for available "Add to Card" buttons
-2. 🖱️ **Clicks** each button automatically with retry logic
-3. ➡️ **Pages through** the Recommended offers row to reach offers not yet shown
-4. 🔄 **Switches accounts** when all offers on the current card are added
-5. 📊 **Updates status** in real-time
-6. ⏸️ **Pause/resume** controls for full user control
+### Built With
 
-## 📊 What Happens When You Click "Add Offers"
+- Chrome Extension Manifest V3
+- Plain JavaScript, HTML and CSS (no runtime dependencies)
+- Jest for tests
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+<!-- GETTING STARTED -->
+## Getting Started
+
+### Prerequisites
+
+- Google Chrome, version 88 or higher
+- A Chase Online Banking account with active credit cards
+- Chase Offers available on those cards
+
+### Installation
+
+1. Clone the repo.
+
+   ```bash
+   git clone https://github.com/kamingfung/chase_offer_auto_enroll.git
+   ```
+
+2. Open `chrome://extensions/` in Chrome.
+3. Turn on **Developer mode** (top-right toggle).
+4. Click **Load unpacked**.
+5. Select the cloned `chase_offer_auto_enroll` folder. The extension icon appears in your toolbar.
+
+![Installation Screenshot](images/installation.png)
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+<!-- USAGE -->
+## Usage
+
+1. Log in to Chase Online Banking.
+2. Open your offers page.
+3. Click the extension icon in your toolbar.
+4. Click **Add offers**.
+5. Watch the progress bar. Use **Pause** and **Resume** as needed.
+
+![Chase Offers Page Example](images/offer_page_exmaple.png)
+
+### What happens when you click "Add offers"
 
 ```mermaid
 flowchart TD
@@ -70,146 +141,74 @@ While it runs:
 - **Short pauses are normal.** If the page is still loading, the extension waits and tries again.
 - **Offers you already added are skipped**, so running it again is safe.
 
-## ✨ Features
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-- **🎯 Smart Button Detection**: Automatically finds and clicks "Add to Card" buttons in all page sections
-- **📑 Multi-Section Support**: Processes both the Recommended offers row and the full offer list automatically
-- **🔄 Multi-Account Support**: Processes offers across all your credit card accounts
-- **✅ Smart Filtering**: Skips offers already added (with checkmark icons)
-- **⏸️ Pause/Resume Controls**: Stop and continue the process at any time
-- **🔁 Enhanced Retry Logic**: 5-retry mechanism with smart loading detection for maximum reliability
-- **📊 Real-time Status**: Live updates on progress and account switching
-- **🛡️ Error Handling**: Graceful handling of various scenarios
-- **🧭 Smart Navigation**: Efficient browser navigation between offers
-- **🎚️ Auto-Scroll**: Automatically scrolls to buttons that are off-screen
+<!-- TROUBLESHOOTING -->
+## Troubleshooting
 
-## 📋 Prerequisites
+| Symptom | Try this |
+|---|---|
+| Extension does nothing | Check you are on a Chase Offers page and the extension is enabled. Refresh the page and try again. |
+| "No buttons found" | Check you are logged in, on the offers page, and have offers left to add. |
+| Process stops | Click Pause, then Resume. If it is still stuck, refresh the page and start again. |
 
-- ✅ **Google Chrome** browser (version 88 or higher)
-- ✅ **Chase Online Banking** account with active credit cards
-- ✅ **Available Chase Offers** on your accounts
+For best results, do not click on the page while the extension runs, and use a stable internet connection.
 
-## 🔧 Installation
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-1. **📥 Download the Extension**
+<!-- FAQ -->
+## FAQ
 
-    ```bash
-    git clone https://github.com/yourusername/chase-offer-adder.git
-    ```
+**Is this safe to use?**
+Yes. The extension refuses to run on any site other than Chase and makes no network requests of its own, so nothing is sent anywhere. The only thing it saves is the last run's progress and summary, kept locally in your Chrome profile.
 
-2. **🌐 Open Chrome Extensions**
-    - Navigate to `chrome://extensions/`
-    - Enable "Developer mode" (top-right toggle)
+**Does it work with multiple cards?**
+Yes. It detects and processes all your credit card accounts.
 
-3. **📁 Load the Extension**
-    - Click "Load unpacked"
-    - Select the `chase-offer-adder` folder
-    - The extension icon will appear in your toolbar
+**What if Chase updates their website?**
+The extension may need an update. Check this repo for new versions.
 
-![Installation Screenshot](images/installation.png)
+**Does it work on mobile?**
+No. It is a Chrome desktop extension only.
 
-## 🎯 How to Use
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-1. **Navigate to Chase Offers**
-    - Log into your Chase Online Banking
-    - Go to your available offers page
+<!-- CONTRIBUTING -->
+## Contributing
 
-2. **Start the Automation**
-    - Click the extension icon in your toolbar
-    - Click "Add offers" in the popup
-    - The automation begins immediately
+Contributions are welcome. See [TECHNICAL.md](TECHNICAL.md) for the architecture, development commands and tests, and [CHANGELOG.md](CHANGELOG.md) for the release history.
 
-3. **Monitor Progress**
-    - Watch real-time status updates
-    - Use Pause/Resume as needed
-    - Extension handles account switching automatically
+1. Fork the project.
+2. Create a feature branch (`git checkout -b feature/my-change`).
+3. Commit your changes (`git commit -m "feat: my change"`).
+4. Push the branch (`git push origin feature/my-change`).
+5. Open a pull request.
 
-### Controls
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-- **Add offers**: Start the automation
-- **Pause**: Temporarily stop the process
-- **Resume**: Continue from where you left off
+<!-- LICENSE -->
+## License
 
-## 🔧 Troubleshooting
+Distributed under the MIT License.
 
-**Extension not working:**
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-- Ensure you're on a Chase Offers page
-- Refresh the page and try again
-- Check that the extension is enabled
+<!-- DISCLAIMER -->
+## Disclaimer
 
-**No buttons found:**
+- A personal coding practice project, not affiliated with JPMorgan Chase & Co.
+- Provided "as-is" without warranty. Use at your own risk.
+- Chase website changes may break it.
+- You are responsible for complying with Chase's terms of service.
 
-- Confirm you're on the correct offers page
-- Verify you have available offers
-- Make sure you're logged into Chase
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-**Process stops:**
-
-- Use Pause/Resume to restart
-- Check your internet connection
-- Refresh and restart if needed
-
-**Tips for best results:**
-
-- Keep the popup open while running
-- Don't interact with the page during automation
-- Use a stable internet connection
-
-## ❓ FAQ
-
-**Q: Is this safe to use?**
-A: Yes. The extension refuses to run on any site other than Chase and makes no network requests of its own, so nothing is sent anywhere. The only thing it saves is the last run's progress and summary, kept locally in your Chrome profile.
-
-**Q: Does this work with multiple accounts?**
-A: Yes, it automatically detects and processes all your credit card accounts.
-
-**Q: What if Chase updates their website?**
-A: The extension may need updates if Chase changes their structure. Check for updates regularly.
-
-**Q: Does this work on mobile?**
-A: No, this is a Chrome desktop extension only.
-
-**Q: What if it gets stuck?**
-A: Use the Pause button, refresh the page, and restart.
-
-## 📸 Screenshots
-
-### Extension Interface
-
-![Extension Popup](images/popup.png)
-
-### Chase Offers Page Example
-
-![Chase Offers Page Example](images/offer_page_exmaple.png)
-
-## ⚖️ Disclaimer
-
-- **Personal coding practice project**
-- Not affiliated with JPMorgan Chase & Co.
-- Use at your own risk
-- This extension is provided "as-is" without warranty
-- Chase website changes may break functionality
-- Your responsibility to comply with Chase's terms of service
-
-## 👨‍💻 For Developers
-
-Interested in the technical details, development setup, or contributing? Check out our comprehensive [**Technical Documentation**](TECHNICAL.md) for:
-
-- 🏗️ Architecture and code structure
-- 🧪 Development commands and testing
-- ⚙️ Chrome extension implementation details
-- 🔧 Advanced configuration and debugging
-- 🤝 Contributing guidelines
-- 📝 Recent updates and version history
-
-## 📄 License
-
-MIT License - see [LICENSE](LICENSE) file for details.
-
----
-
-**Version:** 2026.10.12.3
-**Last Updated:** 2026-10-12
-
-See [CHANGELOG.md](CHANGELOG.md) for release history, or [TECHNICAL.md](TECHNICAL.md) for detailed technical changes.
+<!-- MARKDOWN LINKS -->
+[stars-shield]: https://img.shields.io/github/stars/kamingfung/chase_offer_auto_enroll.svg?style=for-the-badge
+[stars-url]: https://github.com/kamingfung/chase_offer_auto_enroll/stargazers
+[issues-shield]: https://img.shields.io/github/issues/kamingfung/chase_offer_auto_enroll.svg?style=for-the-badge
+[issues-url]: https://github.com/kamingfung/chase_offer_auto_enroll/issues
+[last-commit-shield]: https://img.shields.io/github/last-commit/kamingfung/chase_offer_auto_enroll.svg?style=for-the-badge
+[last-commit-url]: https://github.com/kamingfung/chase_offer_auto_enroll/commits/main
+[license-shield]: https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge
+[license-url]: https://opensource.org/licenses/MIT
